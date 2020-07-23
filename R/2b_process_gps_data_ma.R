@@ -9,9 +9,9 @@
 # WGS84 Latitude Longitude
 # "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs" (4326)
 # UTM 34S:
-# "+proj=utm +zone=35 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs" (32734)
+# "+proj=utm +zone=34 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs" (32734)
 # UTM 35S:
-# "+proj=utm +zone=34 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs" (32735)
+# "+proj=utm +zone=35 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs" (32735)
 
 
 rm(list = ls())
