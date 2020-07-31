@@ -1,9 +1,9 @@
 removeSpeedOutliers <- function(bird, country_map, cut_speed, filepath){
     
-    bird <- new_trk
-    country_map <- sa_map
-    cut_speed <- 200
-    filepath <- "output/data_process/"
+    # bird <- new_trk
+    # country_map <- sa_map
+    # cut_speed <- 200
+    # filepath <- "output/data_process/"
     
     # save original variables
     var_orig <- colnames(bird)
@@ -26,12 +26,12 @@ removeSpeedOutliers <- function(bird, country_map, cut_speed, filepath){
     
     # Remove locations with speeds that are too high --------------------------
     
-    # Calculate travelling speed in km/h
+    # Calculate travelling speed in km/h (speed to reach location not to depart from location!)
     bird <- bird %>% 
-        mutate(dx = lead(x) - x,
-               dy = lead(y) - y,
+        mutate(dx = x - lag(x),
+               dy = y - lag(y),
                dist = sqrt(dx^2 + dy^2),
-               speed = dist / (1000 * dt))
+               speed = dist / (1000 * lag(dt)))
     
     
     # Plot speed distribution before removing locations
@@ -72,7 +72,7 @@ removeSpeedOutliers <- function(bird, country_map, cut_speed, filepath){
     # First create an auxliary effective speed variable (corrected by dt).
     # If dt is greater than 1 hour the auxiliary speed gets penalized (increased)
     bird <- bird %>% 
-        mutate(speed_aux = if_else(dt > 1, speed * (1 + log(dt)), speed))
+        mutate(speed_aux = if_else(lag(dt) > 1, speed * (1 + log(lag(dt))), speed))
     
     while(any(bird$speed_aux > cut_speed, na.rm = TRUE)){
         bird <- bird %>% 
@@ -80,11 +80,11 @@ removeSpeedOutliers <- function(bird, country_map, cut_speed, filepath){
             # Recalculate dt and speed
             arrange(datetime) %>%       # Sort data by date before computing dt
             mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
-                   dx = lead(x) - x,
-                   dy = lead(y) - y,
+                   dx = x - lag(x),
+                   dy = y - lag(y),
                    dist = sqrt(dx^2 + dy^2),
-                   speed = dist / (1000 * dt),
-                   speed_aux = if_else(dt > 1, speed * (1 + log(dt)), speed))
+                   speed = dist / (1000 * lag(dt)),
+                   speed_aux = if_else(lag(dt) > 1, speed * (1 + log(lag(dt))), speed))
     }
     
     # Geographical location after removing outlying speeds
