@@ -19,12 +19,12 @@ bird_db <- read_rds("data/working/bird_db_template.rds")
 bird_trk <- read_rds("data/working/bird_trk_template.rds")
 
 # Read in new data
-dat_summary <- read_csv("data/raw/E-obs GSM Kapgeier Southafrica-reference-data.csv")
+dat_summary <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica-reference-data.csv")
 dat_summary
 
 # THIS IS A VERY LARGE FILE. RUN THE FIRST TIME TO DIVIDE IT IN TEMPORARY INDIVIDUAL
 # BIRD FILES. THEN, SKIP DIRECTLY TO PRE-PROCESSING.
-new_trk <- read_csv("data/raw/E-obs GSM Kapgeier Southafrica.csv")
+# new_trk <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica.csv")
 
 
 # Create temporary individual files ---------------------------------------
@@ -33,7 +33,7 @@ new_trk <- read_csv("data/raw/E-obs GSM Kapgeier Southafrica.csv")
 # and create temporary individual files.
 
 # This takes a while so RUN ONLY IF NECESSARY!!!
-source("R/functions/create_ma_temp_files.R")
+# source("R/functions/create_ma_temp_files.R")
 
 
 
@@ -65,7 +65,7 @@ bird_id <- paste("ma", ids[i], sep = "")
 colnames(bird_trk)
 colnames(new_trk)
 
-# Fix Date column to be POSIXct variable (using SA standard time - SAST)
+# Fix Date column to be POSIXct variable
 new_trk$`study-local-timestamp` <- as.POSIXct(new_trk$`study-local-timestamp`, format = "%Y/%m/%d")
 
 # Create variables to match template.
@@ -99,8 +99,8 @@ dat_summary
 age <- if_else(bird_id %in% paste("ma", c("09", "11", "12", "14"), sep = ""), "ad",
                "juv")
 
-sex <- if_else(bird_id %in% paste("ma", c("01", "03", "05"), sep = ""), "female",
-               if_else(bird_id %in% paste("ma", c("02", "04"), sep = ""), "male",
+sex <- if_else(bird_id %in% paste("ma", c("01", "03", "05", "08", "09", "13", "14"), sep = ""), "female",
+               if_else(bird_id %in% paste("ma", c("02", "04", "07", "10", "11", "12", "15", "16"), sep = ""), "male",
                        "unknown"))
 
 

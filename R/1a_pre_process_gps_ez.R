@@ -19,14 +19,14 @@ bird_db <- read_rds("data/working/bird_db_template.rds")
 bird_trk <- read_rds("data/working/bird_trk_template.rds")
 
 # Read in new data
-excel_sheets("data/raw/Cape vulture data_Ezemvelo_Feb19.xls")
+excel_sheets("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls")
 
-dat_summary <- read_excel("data/raw/Cape vulture data_Ezemvelo_Feb19_datecorrected.xls", sheet = "Summary")
+dat_summary <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19_datecorrected.xls", sheet = "Summary")
 dat_summary
 
 for(i in 2:10){
     
-    new_trk <- read_excel("data/raw/Cape vulture data_Ezemvelo_Feb19.xls", sheet = i)
+    new_trk <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls", sheet = i)
     
     
     # Pre-processing ----------------------------------------------------------
@@ -41,7 +41,7 @@ for(i in 2:10){
     colnames(bird_trk)
     colnames(new_trk)
     
-    # Fix Date column to be POSIXct variable (using SA standard time - SAST)
+    # Fix Date column to be POSIXct variable
     new_trk$Date <- as.POSIXct(new_trk$Date, format = "%m/%d/%Y")
     
     # Create variables to match template.

@@ -1,8 +1,7 @@
 # 13-07-2020
 
 # We then explore bird tracking data and eliminate non-sensical locations
-# - Locations in the ocean
-# - Locations with physically impossible travelling speeds
+# i.e locations with physically impossible travelling speeds
 # Finally, birds are added to the data bases
 
 # UTM proj4string (crs) we might want to use:
@@ -27,7 +26,7 @@ library(sf)
 bird_db <- read_rds("data/working/bird_db_template.rds")
 
 # Read in raw data summary
-dat_summary <- read_csv("data/raw/E-obs GSM Kapgeier Southafrica-reference-data.csv")
+dat_summary <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica-reference-data.csv")
 
 # If the loop is ran all birds are processed. If only one bird wants to be processed
 # set i <- <desired bird number> and run the body of the loop.
