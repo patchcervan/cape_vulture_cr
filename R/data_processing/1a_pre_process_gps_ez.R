@@ -26,13 +26,14 @@ dat_summary
 
 for(i in 2:10){
     
-    new_trk <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls", sheet = i)
-    
+    new_trk <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19_datecorrected.xls", sheet = i)
     
     # Pre-processing ----------------------------------------------------------
     
     # Set bird id
-    unique(new_trk$Id)
+    tag_id <- unique(new_trk$Id)
+        
+    if(tag_id == 57355) next
     
     bird_id <- paste("ez0", dat_summary$`Bird #`[which(dat_summary$`PTT id` == unique(new_trk$Id))], sep = "")
     
@@ -47,7 +48,7 @@ for(i in 2:10){
     # Create variables to match template.
     new_trk <- new_trk %>% 
         mutate(bird_id = bird_id,    # create identifier for the bird
-               tag_id = as.character(Id),
+               tag_id = as.character(tag_id),
                datetime = as.POSIXct(paste(Date, format(ymd_hms(Time), "%H:%M:%S")))) %>% 
         arrange(datetime) %>%       # Sort data by date before computing dt
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
@@ -68,15 +69,16 @@ for(i in 2:10){
     
     unique(new_trk$tag_id)
     dat_summary
+    index <- which(dat_summary$`PTT id` == tag_id)
     
     # Fix age and sex
-    age <- if_else(bird_id %in% paste("ez0", c(2,5), sep = ""), "ad",
-                   if_else(bird_id %in% paste("ez0", 1, sep = ""), "juv",
+    age <- dat_summary$`Age when caught`[index]
+    
+    age <- if_else(age == "Adult", "ad",
+                   if_else(age == "Juvenile", "juv",
                            "subad"))
     
-    sex <- if_else(bird_id %in% paste("ez0", c(1,2), sep = ""), "male",
-                   if_else(bird_id %in% paste("ez0", 4, sep = ""), "female",
-                           "unknown"))
+    sex <- dat_summary$Sex[index] %>% tolower()
     
     
     new_db <- dat_summary %>% 
@@ -90,8 +92,10 @@ for(i in 2:10){
             spd_units = as.character("km/h"),
             # unique bird identifier - 2 first letters of provider, plus 2 numbers
             bird_id = as.character(bird_id),
+            # ring id
+            ring_id = NA,
             # capture date
-            date_cap = as.POSIXct(`Date caught`),
+            date_start = format(new_trk$datetime[1],"%m/%d/%y"),
             # date of last location
             date_end = NA,
             # name of the bird

@@ -13,9 +13,9 @@ library(tidyverse)
 library(lubridate)
 library(readxl)
 
-excel_sheets("data/raw/Cape vulture data_Ezemvelo_Feb19.xls")
+excel_sheets("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls")
 
-dat_summary <- read_excel("data/raw/Cape vulture data_Ezemvelo_Feb19.xls", sheet = "Summary")
+dat_summary <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls", sheet = "Summary")
 
 
 # Bird data base ----------------------------------------------------------
@@ -29,8 +29,10 @@ bird_db <- tibble(
     spd_units = character(),
     # unique bird identifier - 2 first letters of provider, plus 2 numbers
     bird_id = character(),
+    # ring id if the bird was ringed (SAFRING)
+    ring_id = character(),
     # capture date
-    date_cap = POSIXct(),
+    date_start = POSIXct(),
     # date of last location
     date_end = POSIXct(),
     # name of the bird

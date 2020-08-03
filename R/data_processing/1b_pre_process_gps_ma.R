@@ -19,7 +19,7 @@ bird_db <- read_rds("data/working/bird_db_template.rds")
 bird_trk <- read_rds("data/working/bird_trk_template.rds")
 
 # Read in new data
-dat_summary <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica-reference-data.csv")
+dat_summary <- read_csv("data/raw/ma/CapesMarburg_DataOverview_Megan_13122018.csv")
 dat_summary
 
 # THIS IS A VERY LARGE FILE. RUN THE FIRST TIME TO DIVIDE IT IN TEMPORARY INDIVIDUAL
@@ -45,9 +45,9 @@ dir("data/working/pre_proc_data/temp_ma")
 
 # Set bird ids. These ids match the order of the birds in the summary file and
 # those in the temporary files directory
-ids <-c("07", "09", "05", "11", "03", "13", "10", "06", "04", "15", "01", "02", "12", "16", "08", "14") 
+# ids <-c("07", "09", "05", "11", "03", "13", "10", "06", "04", "15", "01", "02", "12", "16", "08", "14") 
 
-# The loopwill process all birds. If only one bird wants to be processed
+# The loop will process all birds. If only one bird wants to be processed
 # set i <- <desired bird number> and run the body of the loop.
 
 for(i in 1:length(dir("data/working/pre_proc_data/temp_ma"))){
@@ -55,10 +55,12 @@ for(i in 1:length(dir("data/working/pre_proc_data/temp_ma"))){
 new_trk <- read_csv(paste("data/working/pre_proc_data/temp_ma/",
                           dir("data/working/pre_proc_data/temp_ma")[i], sep = ""))
 
-unique(new_trk$bird_name)
+bird_name <- unique(new_trk$bird_name)
 dat_summary
 
-bird_id <- paste("ma", ids[i], sep = "")
+index <- which(str_detect(dat_summary$AnimalID, bird_name))
+
+bird_id <- if(index < 10) paste0("ma0", index) else paste0("ma", index)
 
 
 # Check template columns and new bird columns
@@ -96,31 +98,36 @@ unique(new_trk$tag_id)
 dat_summary
 
 # Fix age and sex
-age <- if_else(bird_id %in% paste("ma", c("09", "11", "12", "14"), sep = ""), "ad",
-               "juv")
+age <- dat_summary$Age[index]
+age <- if_else(age == "First year", "juv","ad")
 
-sex <- if_else(bird_id %in% paste("ma", c("01", "03", "05", "08", "09", "13", "14"), sep = ""), "female",
-               if_else(bird_id %in% paste("ma", c("02", "04", "07", "10", "11", "12", "15", "16"), sep = ""), "male",
-                       "unknown"))
+sex <- if_else(is.na(dat_summary$SexMDS[index]), 
+               dat_summary$SuspectedSex[index], 
+               dat_summary$SexMDS[index]) %>% 
+    tolower()
+
+
 
 
 new_db <- dat_summary %>% 
-    filter(str_detect(`animal-id`, str_sub(dir("data/working/pre_proc_data/temp_ma")[i], 1, -10))) %>% 
+    filter(str_detect(dat_summary$AnimalID, bird_name)) %>% 
     mutate(
         # trasmitter id
-        tag_id = as.character(`tag-id`),
+        tag_id = as.character(TransmitterID),
         # tag model
         tag_type = "e-obs_GPS/GSM",
         # Speed units
         spd_units = as.character("km/h"),
         # unique bird identifier - 2 first letters of provider, plus 2 numbers
         bird_id = as.character(bird_id),
+        # ring id
+        ring_id = RingNo,
         # capture date
-        date_cap = as.POSIXct(`deploy-on-date`),
+        date_start = format(new_trk$datetime[1],"%m/%d/%y"),
         # date of last location
         date_end = NA,
         # name of the bird
-        name = as.character(str_sub(dir("data/working/pre_proc_data/temp_ma")[i], 1, -10)),
+        name = as.character(bird_name),
         
         # bird age when caught - factor with levels:juvenile, sub-adult, adult
         age = factor(age, levels = c("juv", "subad", "ad")),
