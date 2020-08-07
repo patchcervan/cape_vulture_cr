@@ -91,7 +91,7 @@ for(i in c(1:22)){
     
     trk_proc <- removeSpeedOutliers(bird = new_trk, country_map = sa_map,
                                    cut_speed = 200,
-                                   filepath = "output/data_process/")
+                                   filepath = "output/diag_data_process/")
     
     
     

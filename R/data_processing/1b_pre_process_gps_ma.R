@@ -106,7 +106,7 @@ sex <- if_else(is.na(dat_summary$SexMDS[index]),
                dat_summary$SexMDS[index]) %>% 
     tolower()
 
-
+sex <- if(is.na(sex)) "unknown" else sex
 
 
 new_db <- dat_summary %>% 
@@ -123,15 +123,15 @@ new_db <- dat_summary %>%
         # ring id
         ring_id = RingNo,
         # capture date
-        date_start = format(new_trk$datetime[1],"%m/%d/%y"),
+        date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
         # date of last location
         date_end = NA,
         # name of the bird
         name = as.character(bird_name),
         
-        # bird age when caught - factor with levels:juvenile, sub-adult, adult
-        age = factor(age, levels = c("juv", "subad", "ad")),
-        # bird sex - factor with levels:male, female
+        # bird age when caught - factor with levels:juvenile, sub-adult, adult and unknown
+        age = factor(age, levels = c("juv", "subad", "ad", "unknown")),
+        # bird sex - factor with levels:male, female and unknown
         sex = factor(sex,levels = c("male", "female", "unknown")),
         
         # number of locations in raw data
