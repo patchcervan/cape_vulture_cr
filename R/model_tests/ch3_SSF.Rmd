@@ -1,0 +1,159 @@
+
+## 3. Step selection
+
+Here we fit a step-selection model considering availability is influenced by the movement characteristics of the bird. Two of the birds didn't have a fine enough resolution to fit a movement model. This problem could be circumvented by using step lengths only but I haven't prepared that yet.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# make amt xyt tracks
+use_rdm <- tibble(
+    bird_id =  test_data %>% 
+    pull(bird_id),
+    # Create a track_xyt data frame
+    data = test_data %>% 
+    pull(data) %>% 
+    future_map(~ make_track(st_drop_geometry(.x), x, y, datetime, crs = crs(.x)))
+)
+
+
+# Process track -----------------------------------------------------------
+
+# Round avg sampling frequency up and resample tracks.
+# Keep only those bursts that allow step and angle calculation
+use_rdm <- use_rdm %>% 
+    mutate(rate = future_map(test_data$data, ~ceiling(mean(.x$dt))))
+
+# use_rdm <- future_map2(use_rdm$data, use_rdm$rate, 
+#                        ~track_resample(.x, rate = hours(1),
+#                                        tolerance = minutes(15))) %>% 
+#     future_map( ~filter_min_n_burst(.x, min_n = 3))
+
+use_rdm <- future_map2(use_rdm$data, use_rdm$rate, 
+                       ~track_resample(.x, rate = hours(as.integer(.y)),
+                                       tolerance = minutes(ceiling(.y*25*60/100)))) %>% 
+    future_map( ~filter_min_n_burst(.x, min_n = 3))
+
+# Keep only those birds with more than 100 data points
+keep <- which(sapply(use_rdm, nrow) > 100)
+use_rdm <- use_rdm[keep]
+
+# Transform to step and angle
+use_rdm <- use_rdm %>% 
+    future_map(~steps_by_burst(.x))
+
+# Create time of day variable
+# Create log of step length and cosine of turning angle. These are used later in the mov. model
+use_rdm <- use_rdm %>% 
+    future_map(~mutate(.x, hourday = lubridate::hour(t1_),
+                       ttnoon = 12 - hourday,
+                       ttnoon_sq = (ttnoon)^2,
+                       log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
+                       cos_ta = cos(ta_)))
+
+
+# Generate random steps --------------------------------------------------
+
+future::plan("multiprocess")
+use_rdm <- use_rdm %>% 
+    future_map(~ random_steps(.x, n_control = 5, presence = .x))
+future::plan("sequential")
+
+
+# Extract covariates ------------------------------------------------------
+#source("../functions/extractCovts.R")
+source("R/functions/extractCovts.R")
+
+# Reproject use-available points and extract covariates
+future::plan("multiprocess")
+use_rdm <- use_rdm %>% 
+    future_map2(test_data$tmerproj[keep], ~ st_as_sf(.x, coords = c("x2_", "y2_"), remove = FALSE, crs = .y)) %>% 
+    # calculate distance from colony
+    future_map2(test_data$colony[keep], ~mutate(.x, dist = as.numeric(st_distance(.x, .y)))) %>% 
+    # extract other covariates
+    future_map(~ st_transform(.x, crs = 4326)) %>% 
+    future_map(~ extractCovts(.x))
+future::plan("sequential")
+
+
+# Fit model ---------------------------------------------------------------
+
+# Standardize covariates and fit model
+ssf_fits <- use_rdm %>% 
+    future_map(~ mutate(.x, across(.cols = c("srtm", "slope", "vrm3", "dist"), scale))) %>%
+    future_map(~ fit_issf(case_ ~ srtm + slope + vrm3 + dist +
+                             sl_ + sl_:ttnoon + sl_:ttnoon_sq +
+                             log_sl + log_sl:ttnoon + log_sl:ttnoon_sq +
+                             cos_ta + cos_ta:ttnoon + cos_ta:ttnoon_sq +
+                             strata(step_id_), data = .x))
+
+```
+
+First, we show the plots of used vs. available points. Random steps are simulated from fitted step lengths and turning angles distributions fitted to the observed data.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='95%', fig.align='center', fig.show='hold', fig.cap="Observed vs. available"}
+
+# Plot use vs available
+use_rdm %>% 
+    future_map2(test_data$bird_id[keep], ~mutate(.x, bird_id = .y)) %>% 
+    do.call("rbind",.) %>% 
+    arrange(case_) %>% 
+    ggplot() +
+    geom_point(aes(x = x2_, y = y2_, colour = case_), alpha = 0.5, size = 1) +
+    scale_colour_manual(values = c("black", "red")) +
+    facet_wrap("bird_id", scales = "free")
+    
+
+```
+
+
+The fitted model is as follows:
+
+Sorry it seems like fancy formula printing package doesn't support this model object yet :(
+```{r equation, echo=FALSE, results="asis"}
+
+# Print model
+# equatiomatic::extract_eq(ssf_fits[[2]]$model)
+
+```
+
+
+The standardized coefficients for these adult birds are as follows:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='95%', fig.align='center', fig.show='hold'}
+
+# Extract coefficients
+ssf_coeff <- ssf_fits %>% 
+    map(~ as_tibble(summary(.x)$coefficients, rownames = "variable")) %>% 
+    map2(test_data$bird_id[keep], ~ mutate(.x, bird_id = .y)) %>% 
+    map2(test_data %>% 
+    left_join(dplyr::select(db, bird_id, age), by = "bird_id") %>% 
+        slice(keep) %>% pull(age), ~ mutate(.x, age = .y)) %>%
+    do.call("rbind", .)
+
+# Plot
+ssf_coeff %>% 
+    filter(variable %in%  c("srtm", "slope", "vrm3", "dist")) %>% 
+    ggplot() +
+    geom_pointrange(aes(x = variable, y = coef, 
+                        ymin = coef - `se(coef)`, 
+                        ymax = coef + `se(coef)`,
+                        colour = age)) +
+    geom_hline(aes(yintercept = 0), linetype = "dashed") +
+    facet_grid(bird_id ~ .)
+
+ssf_coeff %>% 
+    filter(variable %in%  c("srtm", "slope", "vrm3", "dist")) %>% 
+    ggplot() +
+    geom_pointrange(aes(x = bird_id, y = coef, 
+                        ymin = coef - `se(coef)`, 
+                        ymax = coef + `se(coef)`,
+                        colour = age)) +
+    facet_grid(variable ~ ., scales = "free")
+```
+
+
+```{r, echo=FALSE}
+# Save model ouputs
+write_rds(rsf_fits, "output/ssf_fits_test.rds")
+
+```
