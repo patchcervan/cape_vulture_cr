@@ -11,9 +11,9 @@ library(rnaturalearth)
 # Base map elements -------------------------------------------------------
 
 # Download South Africa map with Lesotho and Swaziland
-sa_map <- rbind(ne_states(country = "south africa", returnclass = "sf"),
-                ne_states(country = "lesotho", returnclass = "sf"),
-                ne_states(country = "swaziland", returnclass = "sf"))
+sa_map <- rbind(rnaturalearth::ne_states(country = "south africa", returnclass = "sf"),
+                rnaturalearth::ne_states(country = "lesotho", returnclass = "sf"),
+                rnaturalearth::ne_states(country = "swaziland", returnclass = "sf"))
 
 # Remove the Prince Edward Islands
 sa_map <- st_crop(sa_map, 
