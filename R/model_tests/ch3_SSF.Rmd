@@ -41,15 +41,6 @@ use_rdm <- use_rdm[keep]
 use_rdm <- use_rdm %>% 
     future_map(~steps_by_burst(.x))
 
-# Create time of day variable
-# Create log of step length and cosine of turning angle. These are used later in the mov. model
-use_rdm <- use_rdm %>% 
-    future_map(~mutate(.x, hourday = lubridate::hour(t1_),
-                       ttnoon = 12 - hourday,
-                       ttnoon_sq = (ttnoon)^2,
-                       log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
-                       cos_ta = cos(ta_)))
-
 
 # Generate random steps --------------------------------------------------
 
@@ -76,6 +67,15 @@ future::plan("sequential")
 
 
 # Fit model ---------------------------------------------------------------
+
+# Create time of day variable
+# Create log of step length and cosine of turning angle. These are used later in the mov. model
+use_rdm <- use_rdm %>% 
+    future_map(~mutate(.x, hourday = lubridate::hour(t1_),
+                       ttnoon = 12 - hourday,
+                       ttnoon_sq = (ttnoon)^2,
+                       log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
+                       cos_ta = cos(ta_)))
 
 # Standardize covariates and fit model
 ssf_fits <- use_rdm %>% 
