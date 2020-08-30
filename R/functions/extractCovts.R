@@ -1,6 +1,6 @@
 # With this function we prepare covariates to use in RSA/SSA around a colony
 
-extractCovts <- function(x, loadCovtsPath = "model_tests/functions/loadCovtsRasters.R",
+extractCovts <- function(x, loadCovtsPath = "R/functions/loadCovtsRasters.R",
                          covts_names = c("srtm", "slope", "vrm3")){
     
     # Make sure x and colony are spatial objects

@@ -19,7 +19,7 @@ loadCovts <- function(x, covts_path = "data/working/covts_rasters", covt = "srtm
         rtemp <- raster(paste0(covts_path,"/",rfiles[r]))
         
         # Save if intersects else NA
-        rr[[r]] <- if(!is.null(intersect(extent(rtemp), extent(x)))) rtemp else NA
+        rr[[r]] <- if(!is.null(raster::intersect(extent(rtemp), extent(x)))) rtemp else NA
     }
     
     # Remove NAs from raster list
