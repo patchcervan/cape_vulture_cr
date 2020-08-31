@@ -145,6 +145,7 @@ rsf_coeff %>%
 
 # Combine fit and data
 rsf_fits <- tibble(
+    bird_id = test_data$bird_id,
     fits = rsf_fits,
     data = use_rdm_st
 )
