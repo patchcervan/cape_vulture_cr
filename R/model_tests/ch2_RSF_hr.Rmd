@@ -30,7 +30,7 @@ future::plan("sequential")
 
 # Extract covariates ------------------------------------------------------
 #source("../functions/extractCovts.R")
-source("R/functions/extractCovts.R")
+source(paste0(proj_path, "/R/functions/extractCovts.R"))
 
 # Reproject use-available points and extract covariates
 future::plan("multiprocess")
@@ -47,8 +47,11 @@ future::plan("sequential")
 # Fit model ---------------------------------------------------------------
 
 # Standardize covariates and fit model
-rsf_fits <- use_rdm %>% 
-    future_map(~ mutate(.x, across(.cols = c("srtm", "slope", "vrm3", "dist"), scale))) %>% 
+use_rdm_st <- use_rdm %>% 
+    future_map(~ mutate(.x, across(.cols = c("srtm", "slope", "vrm3", "dist"), scale)))
+    
+
+rsf_fits <- use_rdm_st %>% 
     future_map(~ fit_rsf(case_ ~ srtm + slope + vrm3 + dist, data = .x))
 
 ```
@@ -113,6 +116,14 @@ rsf_coeff %>%
 
 
 ```{r, echo=FALSE}
+
+# Combine fit and data
+rsf_fits <- tibble(
+    bird_id = test_data$bird_id,
+    fits = rsf_fits,
+    data = use_rdm_st
+)
+
 # Save model ouputs
 write_rds(rsf_fits, "output/rsf_hr_fits_test.rds")
 

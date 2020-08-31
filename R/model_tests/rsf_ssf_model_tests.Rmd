@@ -32,13 +32,15 @@ The objective is to understand which of these options performs better at predict
 library(tidyverse)
 library(sf)
 library(raster)
-library(sf)
 library(furrr)
 library(lubridate)
 library(amt)
 
 # Clean workspace
 rm(list = ls())
+
+# set file path to project
+proj_path <- rprojroot::find_rstudio_root_file()
 
 # Load test data
 test_data <- read_csv("data/working/test_data/test_data.csv")
@@ -66,7 +68,6 @@ test_data %>%
               sd_dt = sd(dt))
 ```
 
-<br><br>
 
 - A tracking timeline of the birds used for the tests:
 
@@ -93,7 +94,6 @@ test_data %>%
 
 ```
 
-<br><br>
 
 - And the general distribution of locations:
 
@@ -177,7 +177,7 @@ source("R/functions/findColony.R")
 
 future::plan("multiprocess")
 test_data <- test_data %>% 
-    mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y)))
+    mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y, plotkde = F)))
 future::plan("sequential")
 ```
 
@@ -193,3 +193,6 @@ future::plan("sequential")
 ```{r child = 'ch3_SSF.Rmd'}
 ```
 
+
+```{r child = 'ch4_model_comparison.Rmd'}
+```
