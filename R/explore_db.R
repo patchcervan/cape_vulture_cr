@@ -11,17 +11,42 @@ library(tidyverse)
 
 db <- read_csv("data/working/bird_db.csv")
 
-# db <- db %>% 
-#     mutate(date_start = as.POSIXct(date_start, tz = "GMT", format = "%m/%d/%y"),
-#            date_end = as.POSIXct(strftime(db$date_end, format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"))
+db <- db %>%
+    mutate(date_start = as.POSIXct(date_start, tz = "GMT", format = "%m/%d/%Y"),
+           date_end = as.POSIXct(date_end, format = "%m/%d/%Y", tz = "GMT"))
 
+
+# Explore age categories --------------------------------------------------
+
+# Overall age
+age <- db %>% 
+    ggplot() +
+    geom_bar(aes(x = age, y = ..count..)) +
+    stat_count(aes(x = age, y = 0.8 *(..count..), label = ..count..),
+               col = "white", geom = "text", ) +
+    theme(legend.position = "bottom",
+          axis.text.y = element_text(size = 15),
+          axis.text.x = element_text(size = 15))
+
+# age by provider (order by provider)
+prov_age <- db %>% 
+    mutate(provider = substring(bird_id, 1,2)) %>% 
+    group_by(age, provider) %>% 
+    summarize(n = n()) %>% 
+    ggplot(aes(x = factor(provider, levels = c("ez","ma","na","ct","mb","mt","wt")),
+               y = n, fill = factor(age))) +
+    geom_col() +
+    geom_text(aes(label = n), vjust = +1, position = "stack") +
+    xlab("Count") +
+    theme(axis.text.y = element_text(size = 15),
+          axis.text.x = element_text(size = 15))
 
 
 # Explore temporal coverage -----------------------------------------------
 
 tl <- db %>% 
     ggplot() + 
-    geom_segment(aes(x = date_start, xend = date_end, 
+    geom_segment(aes(x = lubridate::date(date_start), xend = lubridate::date(date_end), 
                      y = bird_id, yend = bird_id, col = age), size = 2) + 
     geom_vline(xintercept = lubridate::mdy(paste0("01/01/", 2003:2020)), 
                colour = "grey") +
@@ -102,9 +127,16 @@ tl_sel <- db_sel %>%
 ggsave(tl_sel, filename = "figures/timeline_sel.png", dpi = 500)
 
 
+
+
+
 # Create a PDF with all the plots -----------------------------------------
 
 pdf(file = "output/db_exploration.pdf")
+
+age
+
+prov_age
 
 tl
 
