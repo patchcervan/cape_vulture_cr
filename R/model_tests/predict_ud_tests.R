@@ -7,9 +7,10 @@
 library(tidyverse)
 library(sf)
 library(raster)
-library(furrr)
 # library(lubridate)
 library(amt)
+library(furrr)
+
 
 # Clean workspace
 rm(list = ls())
@@ -19,11 +20,6 @@ test_data <- read_csv("data/working/test_data/test_data.csv")
 
 # Load bird data base
 db <- read_csv("data/working/bird_db.csv")
-
-# Load model fits
-fits <- list(colony = read_rds("output/rsf_colony_fits_test.rds"),
-             hr = read_rds("output/rsf_hr_fits_test.rds"),
-             ssf = read_rds("output/ssf_fits_test.rds"))
 
 
 # PREPARE DATA FOR MODEL FITTING ------------------------------------------
@@ -41,7 +37,7 @@ test_data <- test_data %>%
 source("R/functions/makeTmerProj.R")
 
 test_data <- test_data %>% 
-    mutate(tmerproj = future_map(data, ~ makeTmerProj(.x)))
+    mutate(tmerproj = map(data, ~ makeTmerProj(.x)))
 
 # Project trajectories
 test_data <- test_data %>% 
@@ -67,15 +63,13 @@ future::plan("sequential")
 # Define available area ---------------------------------------------------
 
 # I am going to define an area of 200 km around colonies
-
-future::plan("multiprocess")
 test_data <- test_data %>% 
     mutate(av_area = future_map(test_data$colony, ~ st_buffer(x = .x, dist = 200000)))
-future::plan("sequential")
+
 
 # Load rasters and predict ------------------------------------------------
 
-source("R/functions/loadCovtsRasters.R")
+source("R/functions/prepCovtsPredict.R")
 
 # Create data frame to store results
 cv_df <- tibble(
@@ -85,9 +79,28 @@ cv_df <- tibble(
     log_lik = double()
     )
 
+# Load model fits
+fits <- list(colony = read_rds("output/rsf_colony_fit_ez05_ma14_mb06_na03_wt07.rds"),
+             hr = read_rds("output/rsf_hr_fit_ct06_ct09_ez05_ez06_ma14_ma15_mb05_mb06_na03_na06_wt07_wt18.rds"),
+             ssf = read_rds("output/ssf_fit_ct06_ct09_ez05_ez06_ma14_ma15_mb05_mb06_na03_na06_wt18.rds"))
+
+# Extract scaling factor from data and remove data from fits to free up memory
+for(j in 1:length(fits)){
+    
+    # Extract scaling factors for each model data
+    fits[[j]]$data <- fits[[j]]$data %>% 
+        future_map(~dplyr::select(.x, dist, srtm, slope, vrm3, NDVI_mean)) %>% 
+        map(~map(.x, ~attr(.x, "scaled:scale"))) %>% 
+        map(~unlist(.x))
+
+}
+
+gc()
+
+
 # For each bird
 for(i in 1:nrow(test_data)){
-    # i <- 2
+    # i <- 1
     
     target_id <- test_data$bird_id[i]
     
@@ -95,31 +108,12 @@ for(i in 1:nrow(test_data)){
     
     colony <- st_transform(test_data$colony[[i]], crs = 4326)
     
-    srtm <- loadCovts(a, covt = "srtm")
-    slope <- loadCovts(a, covt = "slope")
-    vrm3 <- loadCovts(a, covt = "vrm3")
+    year <- unique(lubridate::year(test_data$data[[i]]$datetime))
     
-    # crop covariates
-    future::plan("multiprocess")
-    srtm <- future_map(srtm, ~crop(.x, a))
-    slope <- future_map(slope, ~crop(.x, a))
-    vrm3 <- future_map(vrm3, ~crop(.x, a))
-    
-    
-    if(length(srtm) > 1){
-        srtm <- do.call(raster::merge, srtm)
-        slope <- do.call(raster::merge, slope)
-        vrm3 <- do.call(raster::merge, vrm3)
-    } else{
-        srtm <- srtm[[1]]
-        slope <- slope[[1]]
-        vrm3 <- vrm3[[1]]
-    }
-    
-    future::plan("sequential") # It's important to close multiprocess after merge otherwise temp files are lost
-    
-    # Calculate distance
-    dist <- raster::distanceFromPoints(srtm, st_coordinates(colony))
+    covts <- prepCovtsPredict(av_area = a, year = year, colony = colony,
+                              topo_covts = c("srtm", "slope", "vrm3"), 
+                              loadCovtsPath = "R/functions/loadCovtsRasters.R",
+                              covts_orig = "data/working")
     
     # For each of the different models calculate preference
     for(j in 1:length(fits)){
@@ -135,25 +129,30 @@ for(i in 1:nrow(test_data)){
             
             pred_id <- fit$bird_id[k]
             
+            if(target_id == pred_id) next
+            
+            # Fit from predictive bird
             fit_bird <- fit$fits[[k]]
-            data_bird <- fit$data[[k]]
             
-            center_factors <- data_bird %>% 
-                dplyr::select(dist, srtm, slope, vrm3) %>% 
-                map(~attr(.x, "scaled:center")) %>% 
-                unlist()
-            
-            sd_factors <- data_bird %>% 
-                dplyr::select(dist, srtm, slope, vrm3) %>% 
-                map(~attr(.x, "scaled:scale")) %>% 
-                unlist()
-            
+            # Extract model coefficients
             coef_bird <- coefficients(fit_bird)
             
-            log_pref <- coef_bird["srtm"] / sd_factors["srtm"] * srtm + 
-                coef_bird["slope"] / sd_factors["slope"] * slope + 
-                coef_bird["vrm3"] / sd_factors["vrm3"] * vrm3 + 
-                coef_bird["dist"] / sd_factors["dist"] * dist
+            # Extract scaling factors
+            sd_factors <- fit$data[[k]]
+            
+            # Scale coefficients
+            sd_factors <- sd_factors[names(covts)]
+            sd_factors[is.na(sd_factors)] <- 1
+            coef_bird <- coef_bird[names(covts)] / sd_factors
+            
+ 
+            # Predict
+            log_pref <- raster::raster(covts)
+            log_pref <- raster::setValues(log_pref, 0)
+            
+            for (r in names(coef_bird)) {
+                log_pref <- log_pref + covts[[r]] * coef_bird[[r]]
+            }
             
             # plot(log_pref)
             # plot(st_geometry(st_transform(test_data$data[[i]], crs = 4326)), add = T)
