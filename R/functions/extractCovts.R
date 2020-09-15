@@ -1,44 +1,32 @@
-# With this function we prepare covariates to use in RSA/SSA around a colony
+# With this function we prepare covariates to use in RSA/SSA
+
+# Setting the extract_method to "merge", covariates are extracted as if 
+# all rasters for the same covariate were merged into a single raster. One variable is produced.
+# Setting the extract_method to "stack", covariates are extracted as if
+# all rasters for the same covariate were stacked into a raster stack. Multiple variables are produced (for the same covariate).
+# This is useful for time indexed covariates were we want to keep the information of all rasters.
 
 extractCovts <- function(x, loadCovtsPath = "R/functions/loadCovtsRasters.R",
-                         covts_names = c("srtm", "slope", "vrm3")){
+                         extractCovtPath = "R/functions/extractCovt.R",
+                         covts_path = "data/working/covts_rasters",
+                         covts_names = c("srtm", "slope", "vrm3"),
+                         return_sf = FALSE, extract_method = c("merge", "stack")){
     
     # Make sure x and colony are spatial objects
     if(!"sf" %in% class(x)) stop("x is not a spatial object")
     
     source(loadCovtsPath)
+    source(extractCovtPath)
     
     for(i in 1:length(covts_names)){
         
-        # Load rasters
-        rr <- loadCovts(x, covts_path = "data/working/covts_rasters", covt = covts_names[i])
-        
-        # Extract covariates ------------------------------------------------------
-        
-        # Create a column for the new covariate
-        x <- x %>% 
-            mutate(!!covts_names[[i]] := as.double(NA))
-        
-        # Extract coordinaces
-        cc <- st_coordinates(x)
-        
-        for(j in seq_along(rr)){
-            
-            ex <- extent(rr[[j]])
-            
-            keep <- which(cc[,1] >= ex[1] & cc[,1] <= ex[2] &
-                              cc[,2] >= ex[3] & cc[,2] <= ex[4])
-            
-            subcc <- cc[keep,, drop = F]
-            
-            # Extract covariates
-            covts <- raster::extract(rr[[j]], subcc)
-            
-            # Add to data frame
-            x[keep, covts_names[[i]]] <- covts
-        }
+        x <- extractCovt(x, loadCovtsPath = loadCovtsPath,
+                         covts_path = covts_path,
+                         covt_name = covts_names[i],
+                         return_sf = TRUE, 
+                         extract_method = extract_method)
     }
     
-    return(st_drop_geometry(x))
+    return(if(return_sf == FALSE) st_drop_geometry(x) else x)
     
 }
