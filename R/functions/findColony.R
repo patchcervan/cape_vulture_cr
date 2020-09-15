@@ -27,7 +27,7 @@ findColony <- function(x, bw = 0.1, sp_proj = 4326, plotkde = T){
                        coords = c("x", "y"), crs = sp_proj)
     
     if(isTRUE(plotkde)){
-        plot(kdens)
+        raster::plot(kdens)
         plot(st_geometry(colony), add = T)
     }
 
