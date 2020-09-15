@@ -8,6 +8,8 @@ library(amt)
 library(raster)
 library(lubridate)
 library(furrr)
+future::plan("sequential")
+future::plan("multiprocess")
 
 rm(list = ls())
 
@@ -36,7 +38,7 @@ test_data <- test_data %>%
 source("R/functions/makeTmerProj.R")
 
 test_data <- test_data %>% 
-    mutate(tmerproj = future_map(data, ~ makeTmerProj(.x)))
+    mutate(tmerproj = map(data, ~ makeTmerProj(.x)))
 
 # Project trajectories
 test_data <- test_data %>% 
@@ -53,10 +55,8 @@ test_data <- test_data %>%
 
 source("R/functions/findColony.R")
 
-future::plan("multiprocess")
 test_data <- test_data %>% 
     mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y)))
-future::plan("sequential")
 
 
 # Process tracks ----------------------------------------------------------
@@ -80,10 +80,23 @@ use_rdm <- use_rdm %>%
 
 # Generate random points --------------------------------------------------
 
-future::plan("multiprocess")
+
 use_rdm <- use_rdm$data %>% 
     future_map2(use_rdm$av_area, ~ random_points(.y, n = nrow(.x) * 5, presence = .x))
-future::plan("sequential")
+
+# Plot use vs available
+useAvaPlot <- use_rdm %>% 
+    future_map2(test_data$bird_id, ~mutate(.x, bird_id = .y)) %>%
+    future_map(~dplyr::select(.x, x_, y_, case_, bird_id)) %>% 
+    do.call("rbind",.) %>% 
+    arrange(case_) %>% 
+    ggplot() +
+    geom_point(aes(x = x_, y = y_, colour = case_), alpha = 0.5, size = 1) +
+    scale_colour_manual(values = c("black", "red")) +
+    facet_wrap("bird_id", scales = "free")
+
+# useAvaPlot
+ggsave(useAvaPlot, filename = "output/rsf_hr_multi_useava.png", dpi = 700)
 
 
 # Extract covariates ------------------------------------------------------
@@ -91,25 +104,57 @@ future::plan("sequential")
 source("R/functions/extractCovts.R")
 
 # Reproject use-available points and extract covariates
-future::plan("multiprocess")
+
+trk_year <- future_map_dbl(test_data$data, ~lubridate::year(min(.x$datetime)))
+
 use_rdm <- use_rdm %>% 
     future_map2(test_data$tmerproj, ~ st_as_sf(.x, coords = c("x_", "y_"), remove = FALSE, crs = .y)) %>% 
     # calculate distance from colony
     future_map2(test_data$colony, ~mutate(.x, dist = as.numeric(st_distance(.x, .y)))) %>% 
     # extract other covariates
     future_map(~ st_transform(.x, crs = 4326)) %>% 
-    future_map(~ extractCovts(.x))
-future::plan("sequential")
+    future_map(~ extractCovts(.x,
+                              loadCovtsPath = "R/functions/loadCovtsRasters.R",
+                              extractCovtPath = "R/functions/extractCovt.R",
+                              covts_path = "data/working/covts_rasters",
+                              covts_names = c("srtm", "slope", "vrm3"),
+                              return_sf = TRUE, extract_method = "merge")) %>% 
+    future_map2(trk_year, ~ extractCovts(.x,
+                                         loadCovtsPath = "R/functions/loadCovtsRasters.R",
+                                         extractCovtPath = "R/functions/extractCovt.R",
+                                         covts_path = "data/working/covts_rasters/modis",
+                                         covts_names = paste0(c("NDVI_doy"), .y),
+                                         return_sf = FALSE, extract_method = "stack"))
+
+
+# Load protected areas
+pa <- st_read("data/working/WDPA_protected_areas/prot_areas_single.shp")
+
+# Calculate intersection between locations and protected areas
+pa_int <- use_rdm %>%
+    future_map2(test_data$colony, ~st_as_sf(.x, coords = c("x_", "y_"), remove = FALSE, crs = crs(.y))) %>%
+    future_map(~st_transform(.x, crs = 4326)) %>%
+    future_map(~st_intersects(.x, pa, sparse = FALSE))
+
+# Create a protected areas covariate
+use_rdm <- use_rdm %>%
+    future_map2(pa_int, ~mutate(.x, prot_area = .y)) %>%
+    future_map(~mutate(.x, prot_area = if_else(prot_area == FALSE, 0, 1)))
+
+# Remove intersection
+rm(pa_int)
+
+
+# Standardize covariates
+use_rdm_st <- use_rdm %>% 
+    future_map(~mutate(.x, NDVI_mean = rowMeans(dplyr::select(., which(str_detect(names(.), "NDVI")))))) %>% 
+    future_map(~ mutate(.x, across(.cols = c("srtm", "slope", "vrm3", "dist", "NDVI_mean"), scale)))
 
 
 # Fit model ---------------------------------------------------------------
 
-# Standardize covariates and fit model
-use_rdm_st <- use_rdm %>% 
-    future_map(~ mutate(.x, across(.cols = c("srtm", "slope", "vrm3", "dist"), scale)))
-
 rsf_fits <- use_rdm_st %>% 
-    future_map(~ fit_rsf(case_ ~ srtm + slope + vrm3 + dist, data = .x))
+    future_map(~ fit_rsf(case_ ~ srtm + slope + vrm3 + dist + prot_area + NDVI_mean, data = .x))
 
 # Extract coefficients
 rsf_coeff <- rsf_fits %>% 
@@ -150,10 +195,7 @@ rsf_fits <- tibble(
     data = use_rdm_st
 )
 
-# Create file name
-saveas <- paste0("output/rsf_hr_fit_", paste(test_data$bird_id, collapse = "_"), ".rds")
-
 # Save
-write_rds(rsf_fits, saveas)
+write_rds(rsf_fits, "output/rsf_hr_fit_multi.rds")
 
 
