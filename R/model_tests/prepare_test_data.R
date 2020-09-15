@@ -3,10 +3,11 @@
 # In this script I will select a few of the vultures with best data
 # to test a few candidate models
 
-rm(list = ls())
-
 library(tidyverse)
 library(lubridate)
+
+rm(list = ls())
+
 
 # Read in database --------------------------------------------------------
 
@@ -28,7 +29,7 @@ db_sel %>%
     ggplot() + 
     geom_segment(aes(x = date_start, xend = date_end, 
                      y = bird_id, yend = bird_id, col = age), size = 2) + 
-    geom_vline(xintercept = lubridate::mdy(paste0("01/01/", 2003:2020)), 
+    geom_vline(xintercept = as.POSIXct(lubridate::mdy(paste0("01/01/", 2003:2020))), 
                colour = "grey") +
     xlab("") +
     # scale_x_date(breaks = lubridate::y(paste0("01/01/", 2003:2020))) +
@@ -37,7 +38,7 @@ db_sel %>%
           axis.text.x = element_text(size = 8))
 
 # I will manually select birds from different areas, age classes and tracking resolution
-bird_ids <- c("wt18", "wt07", "na03", "na06", "ma14", "ma15")
+bird_ids <- c("wt18", "wt07", "na03", "na06", "mb05", "mb06", "ma14", "ma15", "ez05", "ez06", "ct06", "ct09")
 
 
 # Load tracking files -----------------------------------------------------
@@ -54,13 +55,19 @@ trkfiles <- trkfiles[trkfiles %in% paste0(bird_ids, ".csv")]
 # Create data frame to store test data
 trk_all <- data.frame()
 
-# Loop through files and keep the periods that we want
-study_period <- list(wt18 = c("2010-01-01","2011-01-01"),
-                     wt07 = c("2008-01-01","2009-01-01"),
-                     na03 = c("2006-01-01","2007-01-01"),
-                     na06 = c("2006-01-01","2007-01-01"),
-                     ma14 = c("2017-01-01","2018-01-01"),
-                     ma15 = c("2017-01-01","2018-01-01"))
+# Loop through files and keep the years that we want
+study_period <- list(wt18 = 2010,
+                     wt07 = 2008,
+                     na03 = 2006,
+                     na06 = 2006,
+                     mb05 = 2018,
+                     mb06 = 2018,
+                     ma14 = 2017,
+                     ma15 = 2017,
+                     ez05 = 2014,
+                     ez06 = 2014,
+                     ct06 = 2017, 
+                     ct09 = 2017)
 
 for(i in seq_along(trkfiles)){
     
@@ -69,10 +76,10 @@ for(i in seq_along(trkfiles)){
     
     # identify bird and tracking period
     print(unique(trk$bird_id))
-    tp <- date(study_period[unique(trk$bird_id)][[1]])
+    tp <- study_period[unique(trk$bird_id)][[1]]
     
     trk <- trk %>% 
-        filter(datetime > tp[1] & datetime < tp[2])
+        filter(year(datetime) == tp)
     
     trk_all <- rbind(trk_all, trk)
 }
