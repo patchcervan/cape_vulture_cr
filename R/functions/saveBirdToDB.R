@@ -12,7 +12,9 @@ saveBirdToDB <- function(new_db, overwrite = FALSE){
 
     # Remove bird if we are sure we want to do this
     if(overwrite == TRUE){
-        print("Bird record was overwritten!")
+        if(unique(new_db$bird_id) %in% current_db$bird_id){
+            print("Bird record was overwritten!")
+        }
 
         current_db <- current_db %>%
             filter(bird_id != unique(new_db$bird_id)) %>%
