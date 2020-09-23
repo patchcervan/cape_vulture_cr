@@ -6,14 +6,31 @@
 
 findColony <- function(x, bw = 0.1, sp_proj = 4326, plotkde = T){
     
+    require(raster)
+    
     # x needs to be a spatial object
     if(!"sf" %in% class(x)) stop("x is not a spatial object")
     
     # To find the colony, we first calculate the point with maximum density of locations
-    dims <- as.matrix(extent(x), byrow = F)
-    m <- if(str_detect(crs(x), "longlat")) 150 else 15
-    nr <- m * (1 + log(abs(diff(dims[2,]))))
-    nc <- m * (1 + log(abs(diff(dims[1,]))))
+    
+    # We are particularly interested in locations in early morning
+    
+    sunr <- x %>% 
+        st_drop_geometry() %>%
+        dplyr::select(lon, lat) %>% 
+        as.matrix() %>% 
+        maptools::sunriset(dateTime = x$datetime, POSIXct.out = T)
+    
+    x$ttsunr <- as.numeric(x$datetime - sunr$time)/3600
+    
+    # Filter locations that are within two hours of sunrise
+    x <- x %>% 
+        filter(abs(ttsunr) < 2)
+    
+    dims <- as.matrix(raster::extent(x), byrow = F)
+    m <- if(str_detect(st_crs(x)$proj4string, "longlat")) 150 else 15
+    nr <- m * max(1, (1 + log(abs(diff(dims[2,])))))
+    nc <- m * max(1, (1 + log(abs(diff(dims[1,])))))
     
     kdens <- spatialEco::sp.kde(as(x, "Spatial"), bw = bw, 
                                 newdata = as.vector(extent(x)),
@@ -27,8 +44,8 @@ findColony <- function(x, bw = 0.1, sp_proj = 4326, plotkde = T){
                        coords = c("x", "y"), crs = sp_proj)
     
     if(isTRUE(plotkde)){
-        raster::plot(kdens)
-        plot(st_geometry(colony), add = T)
+        print(raster::plot(kdens))
+        print(plot(st_geometry(colony), add = T))
     }
 
     
