@@ -33,7 +33,7 @@ prov_age <- db %>%
     mutate(provider = substring(bird_id, 1,2)) %>% 
     group_by(age, provider) %>% 
     summarize(n = n()) %>% 
-    ggplot(aes(x = factor(provider, levels = c("ez","ma","na","ct","mb","mt","wt")),
+    ggplot(aes(x = factor(provider, levels = c("ew","ez","kr","ma","na","ct","mb","mt","wt")),
                y = n, fill = factor(age))) +
     geom_col() +
     geom_text(aes(label = n), vjust = +1, position = "stack") +
@@ -57,7 +57,7 @@ tl <- db %>%
           axis.text.x = element_text(size = 8))
 
 
-ggsave(tl, filename = "figures/timeline.png", dpi = 500)
+# ggsave(tl, filename = "figures/timeline.png", dpi = 500)
 
 
 
@@ -88,7 +88,7 @@ ttl2 <- db %>%
           axis.text.y = element_text(size = 5),
           axis.text.x = element_text(size = 8))
 
-ggsave(ttl2, filename = "figures/timetolocation2.png", dpi = 500)
+# ggsave(ttl2, filename = "figures/timetolocation2.png", dpi = 500)
 
 
 # Resolution histogram
@@ -100,14 +100,26 @@ tres <- db %>%
              col = "white", geom = "text", ) +
     ggtitle("Time resolution of the different birds")
 
-ggsave(tres, filename = "figures/timeresolution.png", dpi = 500)
+# ggsave(tres, filename = "figures/timeresolution.png", dpi = 500)
 
 
 # Birds with good duration and resolution ---------------------------------
 
+# Overall tracking duration
+dur <- db %>% 
+    mutate(dur = date_end - date_start)  %>% 
+    arrange(dur) %>% #select(bird_id, dur) %>% print(n = Inf)
+    mutate(bird_id = factor(bird_id, levels = unique(.$bird_id))) %>% 
+    ggplot() +
+    geom_col(aes(x = dur, y = bird_id)) +
+    theme(legend.position = "bottom",
+          axis.text.y = element_text(size = 5),
+          axis.text.x = element_text(size = 8))
+# wt11 and wt16 are repeated.
+
 # Filter birds
 db_sel <- db %>% 
-    mutate(dur = date_end - date_start) %>% 
+    mutate(dur = date_end - date_start)
     filter(dur > 300, avg_dt < 2) %>% 
     print(n = Inf)
 
