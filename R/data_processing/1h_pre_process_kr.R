@@ -83,9 +83,9 @@ new_db <- tibble(
     # ring id if the bird was ringed (SAFRING)
     ring_id = NA,
     # capture date
-    date_start = new_trk %>% group_by(bird_id) %>% slice_head() %>% pull(datetime),
+    date_start = format(new_trk %>% group_by(bird_id) %>% slice_head() %>% pull(datetime), format = "%m/%d/%Y"),
     # date of last location
-    date_end = new_trk %>% group_by(bird_id) %>% slice_tail() %>% pull(datetime),
+    date_end = format(new_trk %>% group_by(bird_id) %>% slice_tail() %>% pull(datetime), format = "%m/%d/%Y"),
     # name of the bird
     name = bird_name,
     # bird age when caught - factor with levels:juvenile, sub-adult, adult

@@ -103,7 +103,7 @@ for(i in c(1:2)){
     new_db <- new_db %>% 
         mutate(
             # date of last location
-            date_end = as.POSIXct(as.character(date(trk_proc$datetime[nrow(trk_proc)]))),
+            date_end = format(new_trk %>% group_by(bird_id) %>% slice_tail() %>% pull(datetime), format = "%m/%d/%Y"),
             # number of locations in processed data
             nloc_post = as.double(nrow(trk_proc)),
             # mean sampling rate (hours)
