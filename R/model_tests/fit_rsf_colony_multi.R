@@ -8,8 +8,6 @@ library(amt)
 library(raster)
 library(lubridate)
 library(furrr)
-future::plan("sequential")
-future::plan("multiprocess")
 
 rm(list = ls())
 
@@ -55,9 +53,10 @@ test_data <- test_data %>%
 
 source("R/functions/findColony.R")
 
+# future::plan("multiprocess")
 test_data <- test_data %>% 
-    mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y)))
-
+    mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y, plotkde = F)))
+# future::plan("sequential")
 
 # Process tracks ----------------------------------------------------------
 
@@ -102,6 +101,7 @@ useAvaPlot <- use_rdm %>%
     ggplot() +
     geom_point(aes(x = x_, y = y_, colour = case_), alpha = 0.5, size = 1) +
     scale_colour_manual(values = c("black", "red")) +
+    # coord_equal() +
     facet_wrap("bird_id", scales = "free")
 
 # useAvaPlot
@@ -141,7 +141,7 @@ pa <- st_read("data/working/WDPA_protected_areas/prot_areas_single.shp")
 
 # Calculate intersection between locations and protected areas
 pa_int <- use_rdm %>%
-    future_map2(test_data$colony, ~st_as_sf(.x, coords = c("x_", "y_"), remove = FALSE, crs = crs(.y))) %>%
+    future_map2(ad_data$colony, ~st_as_sf(.x, coords = c("x_", "y_"), remove = FALSE, crs = crs(.y))) %>%
     future_map(~st_transform(.x, crs = 4326)) %>%
     future_map(~st_intersects(.x, pa, sparse = FALSE))
 

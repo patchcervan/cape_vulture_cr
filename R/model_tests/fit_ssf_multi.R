@@ -8,8 +8,6 @@ library(amt)
 library(raster)
 library(lubridate)
 library(furrr)
-future::plan("sequential")
-future::plan("multiprocess")
 
 rm(list = ls())
 
@@ -62,7 +60,11 @@ test_data <- test_data %>%
 
 # Process track -----------------------------------------------------------
 
-# make amt xyt tracks
+# make amt xyt tracks for adult birds only
+test_data <- test_data %>% 
+    left_join(dplyr::select(db, bird_id, age), by = "bird_id") %>% 
+    filter(age == "ad")
+
 use_rdm <- tibble(
     bird_id =  test_data %>% 
         pull(bird_id),

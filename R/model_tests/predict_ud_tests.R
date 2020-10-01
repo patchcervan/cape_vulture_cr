@@ -30,6 +30,11 @@ test_data <- test_data %>%
     st_as_sf(coords = c("lon", "lat"), crs = 4326, dim = "XY", remove = FALSE) %>%
     nest(data = c(-bird_id))
 
+# Select only adult birds
+test_data <- test_data %>% 
+    left_join(dplyr::select(db, bird_id, age), by = "bird_id") %>% 
+    filter(age == "ad")
+
 
 # Project trajectories ----------------------------------------------------
 
@@ -54,10 +59,8 @@ test_data <- test_data %>%
 
 source("R/functions/findColony.R")
 
-future::plan("multiprocess")
 test_data <- test_data %>% 
     mutate(colony = future_map2(test_data$data, test_data$tmerproj, ~ findColony(.x, bw = 1000, sp_proj = .y)))
-future::plan("sequential")
 
 
 # Define available area ---------------------------------------------------
@@ -80,9 +83,9 @@ cv_df <- tibble(
     )
 
 # Load model fits
-fits <- list(colony = read_rds("output/rsf_colony_fit_ez05_ma14_mb06_na03_wt07.rds"),
-             hr = read_rds("output/rsf_hr_fit_ct06_ct09_ez05_ez06_ma14_ma15_mb05_mb06_na03_na06_wt07_wt18.rds"),
-             ssf = read_rds("output/ssf_fit_ct06_ct09_ez05_ez06_ma14_ma15_mb05_mb06_na03_na06_wt18.rds"))
+fits <- list(colony = read_rds("output/rsf_colony_fit_multi.rds"),
+             hr = read_rds("output/rsf_hr_fit_multi.rds"),
+             ssf = read_rds("output/ssf_fit_multi.rds"))
 
 # Extract scaling factor from data and remove data from fits to free up memory
 for(j in 1:length(fits)){
@@ -177,6 +180,14 @@ cvplot <- ggplot(cv_df) +
     xlab("Model") + ylab("Predicted log-likelihood") +
     facet_grid(target_id ~., scales = "free")
 
+cvplot_med <- cv_df %>% 
+    group_by(target_id, mod) %>% 
+    summarize(med_ll = median(log_lik)) %>% 
+    ggplot() +
+    geom_col(aes(x = target_id, y = -med_ll, group = mod), position = "dodge", col = "white") +
+    facet_grid(.~target_id , scales = "free")
+
 ggsave(cvplot, file = "figures/cv_results_test.png", dpi = 700)
+ggsave(cvplot_med, file = "figures/cv_median_results_test.png", dpi = 700)
 
 write_rds(cv_df, "output/cv_results_tests.rds")
