@@ -4,12 +4,18 @@
 # creates a spatial point at location of maximum density
 
 
-findColony <- function(x, bw = 0.1, sp_proj = 4326, plotkde = T){
+findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0.1, sp_proj = 4326, plotkde = T){
     
     require(raster)
     
     # x needs to be a spatial object
     if(!"sf" %in% class(x)) stop("x is not a spatial object")
+    
+    # rename coordinates to "lon" - "lat"
+    x <- x %>% 
+        rename(lon = coords[1],
+               lat = coords[2],
+               datetime = timevar)
     
     # To find the colony, we first calculate the point with maximum density of locations
     
