@@ -27,10 +27,10 @@ bird_db <- bird_db %>%
 # List all tracking files
 trk_files <- list.files("data/working/bird_tracks", pattern = ".csv")
 
-for(i in 1:22){
+for(i in 1:79){
     
 # choose one track
-i <- 79
+# i <- 79
 
 trk_sel <- read_csv(paste0("data/working/bird_tracks/", trk_files[i])) %>% 
     arrange(datetime)
