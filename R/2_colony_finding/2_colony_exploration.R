@@ -17,7 +17,7 @@ library(tidyverse)
 colony <- read_csv("data/working/colony_db.csv")
 
 # Read in bird data base
-bird_db <- read_csv("data/working/bird_db.csv")
+bird_db <- read_csv("data/working/bird_db_fit_ready.csv")
 
 
 # Process colony data -----------------------------------------------------
@@ -33,12 +33,6 @@ colony <- colony %>%
            dist_year_lat = lag(dens_lat) - dens_lat,
            dist_year = sqrt(dist_year_lon^2 + dist_year_lat^2)) %>% 
     ungroup()
-
-# Remove an outlier bird (ct11) with extremely large distance between
-# colonies in consecutive years
-colony <- colony %>% 
-    filter(bird_id != "ct11")
-
 
 # Plot distance between observed and known colonies -----------------------
 
