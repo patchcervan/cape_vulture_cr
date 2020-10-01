@@ -89,7 +89,7 @@ new_db <- tibble(
     # name of the bird
     name = bird_name,
     # bird age when caught - factor with levels:juvenile, sub-adult, adult
-    age = factor(rep("ad", length(bird_id)), levels = c("juv", "subad", "ad")),
+    age = factor(c("ad", NA), levels = c("juv", "subad", "ad")),
     # bird sex - factor with levels:male, female
     sex = factor(c("male", "female"), levels = c("male", "female", "unknown")),
     # number of locations in raw data
