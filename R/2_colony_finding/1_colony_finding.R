@@ -157,4 +157,4 @@ for(i in 1:length(trk_files)){
     
 }
 
-write_csv(colony_db, path = "data/working/colony_db.csv")
+write_csv(colony_db, file = "data/working/colony_db.csv")
