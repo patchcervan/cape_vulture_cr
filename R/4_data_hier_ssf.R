@@ -25,7 +25,7 @@ bird_db <- read_csv("data/working/bird_db_fit_ready.csv")
 colony_db <- read_csv("data/working/colony_db.csv") 
 
 # Read in roost and colony data
-colony_orig <- read_csv("data/raw/CV_Colonies_20200601.csv")
+colony_orig <- read_csv("data/raw/ewt_cv_Colonies_20200601.csv")
 
 # Extract roosts and fix names
 roost <- colony_orig %>% 
@@ -61,7 +61,7 @@ model_data <- data.frame()
 # for each bird
 for(i in 1:length(trk_files)){
     
-    # i = 2
+    # i = 17
     
     trk <- read_csv(paste0("data/working/bird_tracks/fit_ready/", trk_files[i]))
     
@@ -205,7 +205,7 @@ for(i in 1:length(trk_files)){
         mutate(data = future_map2(.$data, .$year, ~ extractCovts(.x,
                                                                  loadCovtsPath = "R/functions/loadCovtsRasters.R",
                                                                  extractCovtPath = "R/functions/extractCovt.R",
-                                                                 covts_path = "data/working/copernicus",
+                                                                 covts_path = "data/working/covts_rasters/copernicus",
                                                                  covts_names = paste0(c("LC100_global_v3.0.1_"), .y),
                                                                  return_sf = TRUE, extract_method = "merge"))) %>% 
         mutate(data = future_map(.$data, ~rename(.x, land_use = which(str_detect(names(.), "LC100"))))) %>% 
@@ -222,12 +222,17 @@ for(i in 1:length(trk_files)){
                                                                  extractCovtPath = "R/functions/extractCovt.R",
                                                                  covts_path = "data/working/covts_rasters/modis",
                                                                  covts_names = paste0(c("NDVI_doy"), .y),
-                                                                 return_sf = TRUE, extract_method = "stack"))) %>%
-        unnest(cols = c(year, data))
+                                                                 return_sf = TRUE, extract_method = "stack")))
+    
+
     
     # Calculate mean NDVI for the year and remove monthly measurements
-    use_rdm <- use_rdm  %>% 
-        mutate(NDVI_mean = rowMeans(dplyr::select(., which(str_detect(names(.), "NDVI"))), na.rm = TRUE)) %>% 
+    # (Careful, means computed for each year separately!)
+    use_rdm <- use_rdm  %>%
+        mutate(mean_NDVI = future_map(.$data, ~dplyr::select(.x, which(str_detect(names(.x), "NDVI"))) %>% 
+                                          st_drop_geometry(.) %>% 
+                                          transmute(., mean_NDVI = rowMeans(., na.rm = T)))) %>% 
+        unnest(cols = c(year, data, mean_NDVI )) %>% 
         dplyr::select(which(!str_detect(names(.), "NDVI_doy")))
     
     # Extract topographical covariates
@@ -236,7 +241,7 @@ for(i in 1:length(trk_files)){
         extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                      extractCovtPath = "R/functions/extractCovt.R",
                      covts_path = "data/working/covts_rasters",
-                     covts_names = c("srtm", "slope", "vrm3"),
+                     covts_names = c("srtm0", "slope", "vrm3"),
                      return_sf = TRUE, extract_method = "merge")
     
     
