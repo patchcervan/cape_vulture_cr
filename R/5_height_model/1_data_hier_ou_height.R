@@ -1,17 +1,16 @@
 # 16-10-2020
 
-# In this script I fit a hierarchical step-selection function model
-# to all vultures selected from the data base
+# In this script we prepare all vultures selected from the data base to
+# fit a hierarchical Ornstein-Uhlenbeck process model to the height readings
 
 rm(list = ls())
 
 library(tidyverse)
 library(sf)
 library(raster)
-library(amt)
 library(furrr)
 library(Rcpp)
-library(lme4)
+
 
 # Read in data ------------------------------------------------------------
 
@@ -61,7 +60,7 @@ model_data <- data.frame()
 # for each bird
 for(i in 1:length(trk_files)){
     
-    # i = 17
+    # i = 1
     
     trk <- read_csv(paste0("data/working/bird_tracks/fit_ready/", trk_files[i]))
     
@@ -82,18 +81,6 @@ for(i in 1:length(trk_files)){
         st_drop_geometry()
     
     
-    # Generate random steps --------------------------------------------------
-    
-    # Create steps object
-    trk <- trk %>% 
-        dplyr::select(x_, y_, t_, bird_id, age, burst_) %>% 
-        make_track(x_, y_, t_, all_cols = T) %>% 
-        steps_by_burst(keep_cols = 'end')
-    
-    use_rdm <- trk %>% 
-        random_steps(n_control = 5)
-    
-    
     # Find distance to colony -------------------------------------------------
     
     # Find colonies used by the bird, make spatial object, and nest by year
@@ -106,16 +93,16 @@ for(i in 1:length(trk_files)){
     years <- unique(colony$year)
     
     # Classify birds according to where their colony for the year is
-    use_rdm <- use_rdm %>% 
-        mutate(year = lubridate::year(t2_)) %>% 
+    trk <- trk %>% 
+        mutate(year = lubridate::year(t_)) %>% 
         left_join(dplyr::select(colony_db, bird_id, year, zone), by = c("bird_id", "year"))
     
     # for each year's colony find distance to tracking locations
-    use_rdm <- use_rdm %>% 
-        st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = F) %>% 
+    trk <- trk %>% 
+        st_as_sf(coords = c("x_", "y_"), crs = tmerproj, remove = F) %>% 
         nest(data = -year)
     
-    use_rdm <- use_rdm %>%
+    trk <- trk %>%
         mutate(dist_col = future_map2(.$data, colony$data, ~st_distance(.x, .y)))
     
 
@@ -136,7 +123,7 @@ for(i in 1:length(trk_files)){
     # For each year calculate distance between locations and any colony or roost
     # considering only those selected roosts and colonies that are further than 10km
     # from central colony
-    use_rdm <- use_rdm %>% 
+    trk <- trk %>% 
         mutate(dist_col_any = future_map2(.$data, col_sel,
                                           ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                        st_coordinates(.y))))
@@ -158,7 +145,7 @@ for(i in 1:length(trk_files)){
     # For each year calculate distance between locations and any roost
     # considering only those selected roosts that are further than 10km
     # from central colony
-    use_rdm <- use_rdm %>% 
+    trk <- trk %>% 
         mutate(dist_roost = future_map2(.$data, roost_sel,
                                         ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                      st_coordinates(.y))))
@@ -180,7 +167,7 @@ for(i in 1:length(trk_files)){
     # For each year calculate distance between locations and any sfs
     # considering only those selected sfs that are further than 10km
     # from central colony
-    use_rdm <- use_rdm %>% 
+    trk <- trk %>% 
         mutate(dist_sfs = future_map2(.$data, sfs_sel,
                                         ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                      st_coordinates(.y))))
@@ -189,15 +176,15 @@ for(i in 1:length(trk_files)){
     # Extract covariates from rasters -----------------------------------------
     
     # Unnest data
-    use_rdm <- unnest(use_rdm, cols = c(-year))
+    trk <- unnest(trk, cols = c(-year))
     
     # Recover spatial object and transform back to geographic coordinates
-    use_rdm <- use_rdm %>% 
+    trk <- trk %>% 
         st_as_sf() %>% 
         st_transform(crs = 4326)
     
     # Nest and extract land use class for the different years
-    use_rdm <- use_rdm  %>%
+    trk <- trk  %>%
         nest(data = -year) %>% 
         mutate(year = case_when(year < 2015 ~ 2015,
                                 year > 2019 ~ 2019,
@@ -207,53 +194,54 @@ for(i in 1:length(trk_files)){
                                                                  extractCovtPath = "R/functions/extractCovt.R",
                                                                  covts_path = "data/working/covts_rasters/copernicus",
                                                                  covts_names = paste0(c("LC100_global_v3.0.1_"), .y),
-                                                                 return_sf = TRUE, extract_method = "merge"))) %>% 
+                                                                 return_sf = FALSE, extract_method = "merge"))) %>% 
         mutate(data = future_map(.$data, ~rename(.x, land_use = which(str_detect(names(.), "LC100"))))) %>% 
         mutate(year = years) %>%    # Return years back to their original values
         unnest(cols = c(year, data)) 
-        
+
     
     # Nest and extract NDVI for the different years
-    use_rdm <- use_rdm  %>%
-        st_as_sf() %>% 
+    trk <- trk  %>%
+        st_as_sf(coords = c("x_", "y_"), crs = tmerproj, remove = FALSE) %>% 
+        st_transform(crs = 4326) %>% 
         nest(data = -year) %>% 
         mutate(data = future_map2(.$data, .$year, ~ extractCovts(.x,
                                                                  loadCovtsPath = "R/functions/loadCovtsRasters.R",
                                                                  extractCovtPath = "R/functions/extractCovt.R",
                                                                  covts_path = "data/working/covts_rasters/modis",
                                                                  covts_names = paste0(c("NDVI_doy"), .y),
-                                                                 return_sf = TRUE, extract_method = "stack")))
-    
-
+                                                                 return_sf = FALSE, extract_method = "stack")))
     
     # Calculate mean NDVI for the year and remove monthly measurements
     # (Careful, means computed for each year separately!)
-    use_rdm <- use_rdm  %>%
-        mutate(mean_NDVI = future_map(.$data, ~dplyr::select(.x, which(str_detect(names(.x), "NDVI"))) %>% 
-                                          st_drop_geometry(.) %>% 
-                                          transmute(., mean_NDVI = rowMeans(., na.rm = T)))) %>% 
-        unnest(cols = c(year, data, mean_NDVI )) %>% 
+    trk <- trk  %>%
+        mutate(NDVI_mean = future_map(.$data, ~dplyr::select(.x, which(str_detect(names(.x), "NDVI"))) %>%
+                                          transmute(., NDVI_mean = rowMeans(., na.rm = T)))) %>% 
+        unnest(cols = c(year, data, NDVI_mean )) %>% 
         dplyr::select(which(!str_detect(names(.), "NDVI_doy")))
     
+    
     # Extract topographical covariates
-    use_rdm <- use_rdm %>% 
-        st_as_sf() %>%
+    trk <- trk %>%
+        st_as_sf(coords = c("x_", "y_"), crs = tmerproj, remove = FALSE) %>% 
+        st_transform(crs = 4326) %>% 
         extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                      extractCovtPath = "R/functions/extractCovt.R",
                      covts_path = "data/working/covts_rasters",
                      covts_names = c("srtm0", "slope", "vrm3"),
-                     return_sf = TRUE, extract_method = "merge")
+                     return_sf = FALSE, extract_method = "merge")
     
     
     # Extract protected areas -------------------------------------------------
     
     # Calculate intersection between locations and protected areas
-    pa_int <- use_rdm %>%
-        st_as_sf() %>%
+    pa_int <- trk %>%
+        st_as_sf(coords = c("x_", "y_"), crs = tmerproj, remove = FALSE) %>% 
+        st_transform(crs = 4326) %>%
         st_intersects(pa, sparse = FALSE)
     
     # Create a protected areas covariate
-    use_rdm <- use_rdm %>%
+    trk <- trk %>%
         mutate(prot_area = if_else(pa_int == FALSE, 0, 1))
     
     # Remove intersection
@@ -262,33 +250,22 @@ for(i in 1:length(trk_files)){
     
     # Create time of day variable ---------------------------------------------
     
-    # Create log of step length and cosine of turning angle. These are used later in the mov. model
-    use_rdm <- use_rdm %>% 
-        mutate(hourday = lubridate::hour(t1_),
+    trk <- trk %>% 
+        mutate(hourday = lubridate::hour(t_),
                ttnoon = 12 - hourday,
-               ttnoon_sq = (ttnoon)^2,
-               log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
-               cos_ta = cos(ta_))
+               ttnoon_sq = (ttnoon)^2)
     
-    # Create also a time resolution variable
-    use_rdm <- use_rdm %>% 
-        mutate(res = case_when(dt_ > 0.5*60 & dt_ <= 1.5*60 ~ 1,
-                               dt_ > 1.5*60 & dt_ <= 2.5*60 ~ 2,
-                               dt_ > 2.5*60 & dt_ <= 3.5*60 ~ 3,
-                               dt_ > 3.5*60 & dt_ <= 5*60 ~ 4,
-                               dt_ > 5*60 & dt_ <= 12*60 ~ 8,
-                               TRUE ~ 24))
-    
+
     # Add bird to data frame --------------------------------------------------
     
     # Remove geometry and merge
-    use_rdm <- st_drop_geometry(use_rdm)
+    # trk <- st_drop_geometry(trk)
     
-    model_data <- rbind(model_data, use_rdm)
+    model_data <- rbind(model_data, trk)
     
     print(c(i, id_sel))
     
 }
 
 # Save data for model fitting
-write_rds(model_data, file = "data/working/data_ssf_ready.rds")
+write_rds(model_data, file = "data/working/data_ou_height_ready.rds")
