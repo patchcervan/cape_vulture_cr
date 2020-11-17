@@ -68,6 +68,10 @@ for(i in 1:nrow(rfiles)){
     
     # plot(elev)
     
+    # NA values correspond to ocean which is at zero elevation so
+    targetr[is.na(targetr)] <- 0
+    elev[is.na(elev)] <- 0
+    
     # Compute covariates
     slope <- terrain(elev, "slope")
     vrm3 <- spatialEco::vrm(elev, s = 3)
@@ -77,6 +81,7 @@ for(i in 1:nrow(rfiles)){
     vrm3 <- crop(vrm3, targetr)
     
     # Save rasters
+    writeRaster(targetr, filename = str_replace(targetfile, "srtm", "srtm0"), overwrite = T)
     writeRaster(slope, filename = str_replace(targetfile, "srtm", "slope"), overwrite = T)
     writeRaster(vrm3, filename = str_replace(targetfile, "srtm", "vrm3"), overwrite = T)
 }
