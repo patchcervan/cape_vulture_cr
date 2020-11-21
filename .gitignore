@@ -5,6 +5,6 @@
 */
 !.gitignore
 !R/
-!R/*
+!R/**
 R/model_tests/
 R/model_tests/*
