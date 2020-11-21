@@ -8,3 +8,5 @@
 !R/**
 R/model_tests/
 R/model_tests/*
+R/functions/TMB/*.dll
+R/functions/TMB/*.o
