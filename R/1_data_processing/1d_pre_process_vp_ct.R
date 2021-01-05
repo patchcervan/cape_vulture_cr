@@ -47,12 +47,11 @@ for(i in 1:11){
     new_trk <- new_trk %>% 
         mutate(bird_id = bird_id,    # create identifier for the bird
                tag_id = tag_id,
-               datetime = paste(new_trk$Date, new_trk$`GPS_utc_HH:MM:SS`)) %>% 
+               datetime = as.POSIXct(paste(new_trk$Date, new_trk$`GPS_utc_HH:MM:SS`))) %>% 
         arrange(datetime) %>%       # Sort data by date before computing dt
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(lon),
                lat = as.double(lat),
-               x = NA, y = NA,      # These will be filled-in later
                alt = as.double(alt),
                heading = NA,
                spd_h = speed, # ASSUMING THAT SPEED IS IN 2D?
@@ -62,7 +61,7 @@ for(i in 1:11){
                error_3d = NA) %>% 
         select(colnames(bird_trk))
     
-    write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
     
     
     # Fill in track template --------------------------------------------------
@@ -94,7 +93,7 @@ for(i in 1:11){
             # ring id
             ring_id = ring_id,
             # capture date
-            date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+            date_start = date(new_trk$datetime[1]),
             # date of last location
             date_end = NA,
             # name of the bird
@@ -115,7 +114,7 @@ for(i in 1:11){
             sd_dt = NA ) %>% 
         select(colnames(bird_db))
     
-    write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
     
     
 }
