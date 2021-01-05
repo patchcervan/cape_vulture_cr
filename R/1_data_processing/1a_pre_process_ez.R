@@ -9,7 +9,6 @@ library(lubridate)
 library(readxl)
 
 
-
 # Read in bird data templates and new data --------------------------------
 
 # Read in bird data base template
@@ -37,7 +36,6 @@ for(i in 2:10){
     
     bird_id <- paste("ez0", dat_summary$`Bird #`[which(dat_summary$`PTT id` == unique(new_trk$Id))], sep = "")
     
-    
     # Check template columns and new bird columns
     colnames(bird_trk)
     colnames(new_trk)
@@ -54,10 +52,9 @@ for(i in 2:10){
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(Longitude),
                lat = as.double(Latitude),
-               x = NA, y = NA,      # These will be filled-in later
                alt = as.double(Altitude),
                heading = as.double(Course),
-               spd_h = if_else(tag_id == 87988, as.double(Speed) * 1852, as.double(Speed)), # ASSUMING THAT SPEED IS IN 2D? Also for tag 87988 data said to multiply by 1852
+               spd_h = if_else(tag_id == 87988, as.double(Speed) * 1.852, as.double(Speed)), # ASSUMING THAT SPEED IS IN 2D? Also for tag 87988 data said to multiply by 1.852
                spd_v = NA, spd_3d = NA, error_h = NA, error_v = NA, 
                error_3d = if('PDOP' %in% names(.)) PDOP else NA) %>% 
         select(colnames(bird_trk))
@@ -117,6 +114,5 @@ for(i in 2:10){
         select(colnames(bird_db))
     
     write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
-    
-    
+
 }
