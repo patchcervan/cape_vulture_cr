@@ -75,7 +75,7 @@ for(i in 1:2){
                error_3d = NA) %>% 
         select(colnames(bird_trk))
     
-    write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
     
     
     # Fill in track template --------------------------------------------------
@@ -105,7 +105,7 @@ for(i in 1:2){
             # ring id
             ring_id = ring_id,
             # capture date
-            date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+            date_start = date(new_trk$datetime[1]),
             # date of last location
             date_end = NA,
             # name of the bird
@@ -126,7 +126,7 @@ for(i in 1:2){
             sd_dt = NA ) %>% 
         select(colnames(bird_db))
     
-    write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
     
     
 }
