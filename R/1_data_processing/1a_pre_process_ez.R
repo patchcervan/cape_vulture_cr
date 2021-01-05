@@ -59,7 +59,7 @@ for(i in 2:10){
                error_3d = if('PDOP' %in% names(.)) PDOP else NA) %>% 
         select(colnames(bird_trk))
     
-    write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
     
     
     # Fill in track template --------------------------------------------------
@@ -113,6 +113,6 @@ for(i in 2:10){
             sd_dt = NA ) %>% 
         select(colnames(bird_db))
     
-    write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
 
 }

@@ -60,10 +60,10 @@ for(i in c(1:2,4:9)){
     bird_id <- paste("ez0", i, sep = "")
     
     # Read in new pre-processed track
-    new_trk <- read_csv(paste("data/working/pre_proc_data/trk_", bird_id, "_pp.csv", sep = ""))
+    new_trk <- read_rds(paste("data/working/pre_proc_data/trk_", bird_id, "_pp.rds", sep = ""))
     
     # Read in new pre-processed data base record
-    new_db <- read_csv(paste("data/working/pre_proc_data/db_", bird_id, "_pp.csv", sep = ""))
+    new_db <- read_rds(paste("data/working/pre_proc_data/db_", bird_id, "_pp.rds", sep = ""))
     
     
     # Remove speed outliers ---------------------------------------------------
