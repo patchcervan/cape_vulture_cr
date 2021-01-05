@@ -11,11 +11,6 @@ rm(list = ls())
 
 library(tidyverse)
 library(lubridate)
-library(readxl)
-
-excel_sheets("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls")
-
-dat_summary <- read_excel("data/raw/ez/Cape vulture data_Ezemvelo_Feb19.xls", sheet = "Summary")
 
 
 # Bird data base ----------------------------------------------------------
@@ -52,16 +47,14 @@ bird_db <- tibble(
 )
 
 # Save template
-write_rds(bird_db, path = "data/working/bird_db_template.rds")
+saveRDS(bird_db, file = "data/working/bird_db_template.rds")
 
 # Create bird data base to store bird data
 if("bird_db.csv" %in% dir("data/working")){
     print("Database present, if you are sure you want to overwrite, run the write_csv alone.")
 } else {
-    write_csv(bird_db, path = "data/working/bird_db.csv")
+    write_csv(bird_db, file = "data/working/bird_db.csv")
 }
-
-
 
 
 # Bird tracking data ------------------------------------------------------
@@ -79,10 +72,6 @@ bird_trk <- tibble(
     lon = double(),
     # latitude
     lat = double(),
-    # Easting UTM
-    x = double(),
-    # Northing UTM
-    y = double(),
     # Altitude a.s.l (m)
     alt = double(),
     # course (heading?)
@@ -102,4 +91,4 @@ bird_trk <- tibble(
 )
 
 # Save template
-write_rds(bird_trk, path = "data/working/bird_trk_template.rds")
+saveRDS(bird_trk, file = "data/working/bird_trk_template.rds")
