@@ -23,8 +23,8 @@ dat_summary <- read_csv("data/raw/ma/CapesMarburg_DataOverview_Megan_13122018.cs
 dat_summary
 
 # THIS IS A VERY LARGE FILE. RUN THE FIRST TIME TO DIVIDE IT IN TEMPORARY INDIVIDUAL
-# BIRD FILES. THEN, SKIP DIRECTLY TO PRE-PROCESSING.
-# new_trk <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica.csv")
+# BIRD FILES. THEN, SKIP DIRECTLY TO PRE-PROCESSING. RUN THIS WITHOUT LOADING ANY PACKAGES
+# new_trk <- read.csv("data/raw/ma/E-obs GSM Kapgeier Southafrica.csv")
 
 
 # Create temporary individual files ---------------------------------------
@@ -52,10 +52,10 @@ dir("data/working/pre_proc_data/temp_ma")
 
 for(i in 1:length(dir("data/working/pre_proc_data/temp_ma"))){
     
-new_trk <- read_csv(paste("data/working/pre_proc_data/temp_ma/",
+new_trk <- read_rds(paste("data/working/pre_proc_data/temp_ma/",
                           dir("data/working/pre_proc_data/temp_ma")[i], sep = ""))
 
-bird_name <- unique(new_trk$bird_name)
+bird_name <- if_else(i == 1, "Marie", unique(new_trk$bird_name))
 dat_summary
 
 index <- which(str_detect(dat_summary$AnimalID, bird_name))
@@ -68,28 +68,29 @@ colnames(bird_trk)
 colnames(new_trk)
 
 # Fix Date column to be POSIXct variable
-new_trk$`study-local-timestamp` <- as.POSIXct(new_trk$`study-local-timestamp`, format = "%Y/%m/%d")
+new_trk$timestamp <- str_sub(new_trk$timestamp, end = -5)
+
+new_trk$`timestamp` <- as.POSIXct(new_trk$`timestamp`)
 
 # Create variables to match template.
 new_trk <- new_trk %>% 
     mutate(bird_id = bird_id,    # create identifier for the bird
-           tag_id = as.character(`tag-local-identifier`),
-           datetime = as.POSIXct(`study-local-timestamp`)) %>% 
+           tag_id = as.character(`tag.local.identifier`),
+           datetime = as.POSIXct(`timestamp`)) %>% 
     arrange(datetime) %>%       # Sort data by date before computing dt
     mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
-           lon = as.double(`location-long`),
-           lat = as.double(`location-lat`),
-           x = NA, y = NA,      # These will be filled-in later
-           alt = as.double(`height-above-ellipsoid`),
+           lon = as.double(`location.long`),
+           lat = as.double(`location.lat`),
+           alt = as.double(`height.above.ellipsoid`),
            heading = as.double(heading),
-           spd_h = as.double(`ground-speed`), # ASSUMING THAT SPEED IS IN 2D?
+           spd_h = as.double(`ground.speed`), # ASSUMING THAT SPEED IS IN 2D?
            spd_v = NA, spd_3d = NA, 
-           error_h = as.double(`eobs:horizontal-accuracy-estimate`),
+           error_h = as.double(`eobs.horizontal.accuracy.estimate`),
            error_v = NA, 
-           error_3d = as.double(`gps:dop`)) %>% 
+           error_3d = as.double(`gps.dop`)) %>% 
     select(colnames(bird_trk))
 
-write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
 
 
 # Fill in track template --------------------------------------------------
@@ -144,5 +145,5 @@ new_db <- dat_summary %>%
         sd_dt = NA ) %>% 
     select(colnames(bird_db))
 
-write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
 }
