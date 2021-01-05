@@ -58,7 +58,6 @@ for(i in 1:9){
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(Longitude),
                lat = as.double(Latitude),
-               x = NA, y = NA,      # These will be filled-in later
                alt = as.double(Altitude),
                heading = as.double(Course),
                spd_h = Speed, # ASSUMING THAT SPEED IS IN 2D? Also for tag 87988 data said to multiply by 1852
@@ -66,7 +65,7 @@ for(i in 1:9){
                error_3d = NA) %>% 
         select(colnames(bird_trk))
     
-    write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
     
     
     # Fill in track template --------------------------------------------------
@@ -118,7 +117,7 @@ for(i in 1:9){
             sd_dt = NA ) %>% 
         select(colnames(bird_db))
     
-    write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
     
     
 }
