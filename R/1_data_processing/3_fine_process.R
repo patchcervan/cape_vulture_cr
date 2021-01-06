@@ -3,15 +3,11 @@
 # In this script we make fine scale exploration and processing of birds
 # The objective is to leave the birds ready for model fitting
 
-# Individual corrections to birds are made in the script ind_corrections.R
-
 rm(list = ls())
 
 library(tidyverse)
 library(lubridate)
 library(sf)
-library(ggmap)
-library(amt)
 
 
 # Read in data ------------------------------------------------------------
@@ -19,19 +15,18 @@ library(amt)
 # Read in bird data base
 bird_db <- read_csv("data/working/bird_db.csv")
 
-# Fix dates. We should consider doing this in the original processing scripts
-bird_db <- bird_db %>% 
-    mutate(date_start = as.POSIXct(date_start, format = "%m/%d/%Y"),
-           date_end = as.POSIXct(date_end, format = "%m/%d/%Y"))
-
 # List all tracking files
-trk_files <- list.files("data/working/bird_tracks", pattern = ".csv")
+trk_files <- list.files("data/working/bird_tracks", pattern = ".rds")
+
+# Load base maps
+source("R/functions/load_basemap.R")
 
 
 # Birds excluded ----------------------------------------------------------
 
 # Create an indicator variable capturing whether birds were selected to
-# be included in the analysis based on previous data processing scripts
+# be included in the analysis based on previous data processing scripts.
+# See the file "data/working/problem_birds.txt"
 excluded <- c("ct01", "ct11", "ew02", "mb07", "wt05", "wt11", "wt16", "wt19", "wt22")
 
 bird_db <- bird_db %>% 
@@ -49,9 +44,7 @@ write_csv(bird_db, "data/working/bird_db.csv")
 for(i in 1:79){
     
 # choose one track
-# i <- 79
-
-trk_sel <- read_csv(paste0("data/working/bird_tracks/", trk_files[i])) %>% 
+trk_sel <- read_rds(paste0("data/working/bird_tracks/", trk_files[i])) %>% 
     arrange(datetime)
 
 # bird ID
@@ -75,8 +68,6 @@ median(trk_sel$dt, na.rm = T)
 
 # General plots -----------------------------------------------------------
 
-source("R/functions/load_basemap.R")
-
 # General map by year
 trk_sel %>%
     mutate(year = year(datetime)) %>% 
@@ -95,14 +86,8 @@ trk_sel %>%
     geom_point(aes(x = datetime, y = coord)) +
     facet_wrap(~ dim, nrow = 2, scales = "free")
 
-# Remove and go to next if bird is excluded
-if(id_sel %in% excluded){
-    
-    file.remove(paste0("data/working/bird_tracks/", id_sel, ".csv"))
-    
-    # Go to next bird in the loop
-    next
-} 
+# Go to next if bird is excluded
+if(id_sel %in% excluded) next 
 
 
 # Cut track segment ----------------------------------------------------------
@@ -185,8 +170,6 @@ if(id_sel == "ct06"){
 
 # Save resampled track ----------------------------------------------------
 
-file.remove(paste0("data/working/bird_tracks/", id_sel, ".csv"))
-
-write_csv(trk_sel, paste0("data/working/bird_tracks/", id_sel, "_cut.csv"))
+saveRDS(trk_sel, paste0("data/working/bird_tracks/keep/", id_sel, "_fine.rds"))
 
 }
