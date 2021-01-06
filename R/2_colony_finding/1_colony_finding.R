@@ -10,7 +10,6 @@ library(sf)
 library(furrr)
 
 
-
 # Load data ---------------------------------------------------------------
 
 # Load colony template
@@ -22,33 +21,31 @@ source("R/functions/load_basemap.R")
 # Ignore warnings because these are auxiliary maps - precision is not important now.
 
 # Read in colony data
-colonies <- read_csv("data/raw/CV_Colonies_20200601.csv") %>% 
+colonies <- read_csv("data/working/colony_data_join.csv") %>% 
     # Make a spatial object
-    st_as_sf(coords = c("longitude", "latitude"), crs = 4326, dim = "XY", remove = FALSE)
+    st_as_sf(coords = c("lon", "lat"), crs = 4326, dim = "XY", remove = FALSE)
 
 # Read in bird tracking files
-trk_files <- list.files("data/working/bird_tracks/fit_ready", pattern = ".csv")
+trk_files <- list.files("data/working/bird_tracks/keep/", pattern = "fine.rds")
 
 
 # Select one track ---------------------------------------------------------
 
 for(i in 1:length(trk_files)){
     
-    # i <- 1
-    
     # Load one bird
-    trk <- read_csv(paste0("data/working/bird_tracks/fit_ready/", trk_files[i]))
+    trk <- readRDS(paste0("data/working/bird_tracks/keep/", trk_files[i]))
     
     id_sel <- unique(trk$bird_id)
     
     print(id_sel)
     
     # Tracking period
-    print(range(trk$t_))
+    print(range(trk$datetime))
     
     # Tracking years
     trk <- trk %>% 
-        mutate(year = lubridate::year(t_))
+        mutate(year = lubridate::year(datetime))
     
     print(
         trk %>% 
@@ -67,15 +64,15 @@ for(i in 1:length(trk_files)){
     
     # Nest spatial object by year
     trk <- trk %>% 
-        st_as_sf(coords = c("x_", "y_"), crs = 4326, dim = "XY", remove = FALSE) %>%
+        st_as_sf(coords = c("lon", "lat"), crs = 4326, dim = "XY", remove = FALSE) %>%
         nest(data = -year)
     
-    # Locate colony for each year
+    # Locate colony for each year based on kernel density
     source("R/functions/findColony.R")
     
     trk <- trk %>% 
-        mutate(colony = future_map(trk$data, ~findColony(.x, coords = c("x_", "y_"),
-                                                         timevar = "t_", bw = 0.1, plotkde = F)))
+        mutate(colony = future_map(trk$data, ~findColony(.x, coords = c("lon", "lat"),
+                                                         timevar = "datetime", bw = 0.1, plotkde = F)))
     
     trk_col <- unnest(trk, cols = c(year, colony)) %>% 
         dplyr::select(year, geometry) %>% 
@@ -112,10 +109,10 @@ for(i in 1:length(trk_files)){
         year = c(slice(trk, 1) %>% pull(year),
                  pull(trk_col, year),
                  pull(known_col, year)),
-        x = c(slice(trk, 1) %>% pull(x_),
+        x = c(slice(trk, 1) %>% pull(lon),
               st_coordinates(trk_col)[,1],
               pull(known_col, lon)),
-        y = c(slice(trk, 1) %>% pull(y_),
+        y = c(slice(trk, 1) %>% pull(lat),
               st_coordinates(trk_col)[,2],
               pull(known_col, lat)),
         type = c("release", rep("observed", nrow(trk_col)), rep("closest", nrow(trk_col)))
@@ -125,9 +122,9 @@ for(i in 1:length(trk_files)){
     # Save plot
     colPerYear <- ggplot(plotdata) +
         geom_sf(data = sa_map) +
-        geom_point(data = trk, aes(x = x_, y = y_), size = 1, alpha = 0.2) +
-        geom_point(data = dplyr::select(colonies, -year),
-                   aes(x = longitude, y = latitude),
+        geom_point(data = trk, aes(x = lon, y = lat), size = 1, alpha = 0.2) +
+        geom_point(data = colonies,
+                   aes(x = lon, y = lat),
                    shape = 4, col = "green", size = 0.5, alpha = 1) +
         geom_point(aes(x = x, y = y, shape = type, colour = type), size = 4) +
         scale_shape_manual(values = c(0,1,2)) +
@@ -149,7 +146,7 @@ for(i in 1:length(trk_files)){
         known_lon = st_coordinates(known_col)[,1],
         known_lat = st_coordinates(known_col)[,2],
         dist = trk_col$min_dist/1000,
-        known_id = known_col$ID_key
+        known_id = known_col$id
     )
     
     # add new entry to data base
