@@ -22,6 +22,9 @@ bird_trk <- read_rds("data/working/bird_trk_template.rds")
 dat_summary <- read_csv("data/raw/na/Summary of data.csv")
 dat_summary
 
+# Remove three last records because they are not Cape Vultures
+dat_summary <- head(dat_summary, 9)
+
 for(i in 1:9){
     
     # Set bird id
@@ -96,7 +99,7 @@ for(i in 1:9){
             # ring id
             ring_id = NA,
             # capture date
-            date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+            date_start = date(new_trk$datetime[1]),
             # date of last location
             date_end = NA,
             # name of the bird
