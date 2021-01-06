@@ -51,10 +51,9 @@ new_trk <- new_trk %>%
     mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
            lon = as.double(Long),
            lat = as.double(Lat),
-           x = NA, y = NA,      # These will be filled-in later
            alt = as.double(Alt),
            heading = as.double(Course),
-           spd_h = Speed, # ASSUMING THAT SPEED IS IN 2D? Also for tag 87988 data said to multiply by 1852
+           spd_h = Speed, # ASSUMING THAT SPEED IS IN 2D?
            spd_v = NA, spd_3d = NA, error_h = NA, error_v = NA, 
            error_3d = NA) %>% 
     select(colnames(bird_trk))
@@ -62,7 +61,7 @@ new_trk <- new_trk %>%
 for(i in 1:length(bird_id)){
     new_trk %>% 
         filter(bird_id == unique(bird_id)[i]) %>% 
-        write_csv(path = paste0("data/working/pre_proc_data/trk_", bird_id[i],"_pp.csv"))
+        saveRDS(file= paste0("data/working/pre_proc_data/trk_", bird_id[i],"_pp.rds"))
 }
 
 
@@ -83,9 +82,9 @@ new_db <- tibble(
     # ring id if the bird was ringed (SAFRING)
     ring_id = NA,
     # capture date
-    date_start = format(new_trk %>% group_by(bird_id) %>% slice_head() %>% pull(datetime), format = "%m/%d/%Y"),
+    date_start = date(new_trk %>% group_by(bird_id) %>% slice_head() %>% pull(datetime)),
     # date of last location
-    date_end = format(new_trk %>% group_by(bird_id) %>% slice_tail() %>% pull(datetime), format = "%m/%d/%Y"),
+    date_end = date(new_trk %>% group_by(bird_id) %>% slice_tail() %>% pull(datetime)),
     # name of the bird
     name = bird_name,
     # bird age when caught - factor with levels:juvenile, sub-adult, adult
@@ -105,5 +104,5 @@ new_db <- tibble(
 for(i in 1:length(bird_id)){
     new_db %>% 
         filter(bird_id == unique(bird_id)[i]) %>% 
-        write_csv(path = paste("data/working/pre_proc_data/db_", bird_id[i],"_pp.csv", sep = ""))
+        saveRDS(file = paste("data/working/pre_proc_data/db_", bird_id[i],"_pp.rds", sep = ""))
 }

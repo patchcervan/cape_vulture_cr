@@ -55,25 +55,26 @@ for(i in 1:22){
     if(i %in% c(1,3)){
         new_trk$Date <- as.POSIXct(new_trk$Date, format="%m/%d/%Y", tz = "GMT")
         new_trk$Time <- strftime(new_trk$GMT, format = "%H:%M:%S", tz = "GMT")
+        new_trk$Date <- as.POSIXct(paste(new_trk$Date, new_trk$Time), format = "%Y-%m-%d %H:%M:%S", tz = "GMT")
     }else if(i %in% c(2, 17, 18, 20:22)){
         new_trk$Date <- as.POSIXct(new_trk$Date, format="%m/%d/%Y", tz = "GMT")
         new_trk$Time <- as.POSIXct(new_trk$GMT, format = "%H:%M:%S", tz = "GMT") %>% 
             strftime(format = "%H:%M:%S", tz = "GMT")
+        new_trk$Date <- as.POSIXct(paste(new_trk$Date, new_trk$Time), format = "%Y-%m-%d %H:%M:%S", tz = "GMT")
     }else if (i == 19){
         new_trk$Date <- as.POSIXct(new_trk$`Date GMT + 0 (MM/DD/YYYY)`, format="%m/%d/%Y %H:%M:%S", tz = "GMT")
-        new_trk$Time <- strftime(new_trk$Date, format = "%H:%M:%S", tz = "GMT")
-        new_trk$Date <- as.POSIXct(new_trk$Date, format="%m/%d/%Y", tz = "GMT")
     }else{
         new_trk$Date <- as.POSIXct(new_trk$`Date GMT + 2 (MM/DD/YYYY)`, format="%m/%d/%Y %H:%M:%S", tz = "Africa/Johannesburg")
-        new_trk$Time <- strftime(new_trk$Date, format = "%H:%M:%S", tz = "Africa/Johannesburg")
-        new_trk$Date <- as.POSIXct(new_trk$Date, format="%m/%d/%Y", tz = "Africa/Johannesburg")
     }
+    
+    # Convert to UTC time
+    attr(new_trk$Date, "tzone") <- "UTC"
     
     # Create variables to match template.
     new_trk <- new_trk %>% 
         mutate(bird_id = bird_id,    # create identifier for the bird
                tag_id = tag_id,
-               datetime = as.POSIXct(paste(new_trk$Date, new_trk$Time), format = "%Y-%m-%d %H:%M:%S", tz = "GMT")) %>% 
+               datetime = Date) %>% 
         arrange(datetime) %>%       # Sort data by date before computing dt
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(`Longitude`),
@@ -88,7 +89,7 @@ for(i in 1:22){
                error_3d = as.double(if(i %in% c(1:3,17,18,20:22)) new_trk$PDOP else NA),) %>% 
         select(colnames(bird_trk))
     
-    write_csv(new_trk, path = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
     
     
     # Fill in track template --------------------------------------------------
@@ -118,7 +119,7 @@ for(i in 1:22){
             # ring id
             ring_id = ring_id,
             # capture date
-            date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+            date_start = date(new_trk$datetime[1]),
             # date of last location
             date_end = NA,
             # name of the bird
@@ -139,7 +140,7 @@ for(i in 1:22){
             sd_dt = NA ) %>% 
         select(colnames(bird_db))
     
-    write_csv(new_db, path = paste("data/working/pre_proc_data/db_", bird_id,"_pp.csv", sep = ""))
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
     
     
 }
