@@ -28,8 +28,6 @@ bird_db <- read_rds("data/working/bird_db_template.rds")
 # Read in raw data summary
 dat_summary <- read_csv("data/raw/ma/E-obs GSM Kapgeier Southafrica-reference-data.csv")
 
-# If the loop is ran all birds are processed. If only one bird wants to be processed
-# set i <- <desired bird number> and run the body of the loop.
 
 # Read in base map elements -----------------------------------------------
 
@@ -57,6 +55,9 @@ source("R/functions/removeSpeedOutliers.R")
 
 
 # Process birds -----------------------------------------------------------
+
+# If the loop is ran all birds are processed. If only one bird wants to be processed
+# set i <- <desired bird number> and run the body of the loop.
 
 for(i in c(1:16)){
     
@@ -130,7 +131,7 @@ for(i in c(1:16)){
     new_db <- new_db %>% 
         mutate(
             # date of last location
-            date_end = as.POSIXct(as.character(date(trk_proc$datetime[nrow(trk_proc)]))),
+            date_end = date(trk_proc$datetime[nrow(trk_proc)]),
             # number of locations in processed data
             nloc_post = as.double(nrow(trk_proc)),
             # mean sampling rate (hours)

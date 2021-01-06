@@ -41,13 +41,13 @@ for(i in 2:10){
     colnames(new_trk)
     
     # Fix Date column to be POSIXct variable
-    new_trk$Date <- as.POSIXct(new_trk$Date, format = "%m/%d/%Y")
+    new_trk$Date <- as.POSIXct(new_trk$Date, format = "%m/%d/%Y", tz = "GMT")
     
     # Create variables to match template.
     new_trk <- new_trk %>% 
         mutate(bird_id = bird_id,    # create identifier for the bird
                tag_id = as.character(tag_id),
-               datetime = as.POSIXct(paste(Date, format(ymd_hms(Time), "%H:%M:%S")))) %>% 
+               datetime = as.POSIXct(paste(Date, format(ymd_hms(Time), "%H:%M:%S")), tz = "GMT")) %>% 
         arrange(datetime) %>%       # Sort data by date before computing dt
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(Longitude),
@@ -92,7 +92,7 @@ for(i in 2:10){
             # ring id
             ring_id = NA,
             # capture date
-            date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+            date_start = date(new_trk$datetime[1]),
             # date of last location
             date_end = NA,
             # name of the bird

@@ -47,7 +47,7 @@ for(i in 1:11){
     new_trk <- new_trk %>% 
         mutate(bird_id = bird_id,    # create identifier for the bird
                tag_id = tag_id,
-               datetime = as.POSIXct(paste(new_trk$Date, new_trk$`GPS_utc_HH:MM:SS`))) %>% 
+               datetime = as.POSIXct(paste(new_trk$Date, new_trk$`GPS_utc_HH:MM:SS`), tz = "GMT")) %>% 
         arrange(datetime) %>%       # Sort data by date before computing dt
         mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
                lon = as.double(lon),

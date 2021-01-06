@@ -70,13 +70,13 @@ colnames(new_trk)
 # Fix Date column to be POSIXct variable
 new_trk$timestamp <- str_sub(new_trk$timestamp, end = -5)
 
-new_trk$`timestamp` <- as.POSIXct(new_trk$`timestamp`)
+new_trk$`timestamp` <- as.POSIXct(new_trk$`timestamp`, tz = "GMT")
 
 # Create variables to match template.
 new_trk <- new_trk %>% 
     mutate(bird_id = bird_id,    # create identifier for the bird
            tag_id = as.character(`tag.local.identifier`),
-           datetime = as.POSIXct(`timestamp`)) %>% 
+           datetime = timestamp) %>% 
     arrange(datetime) %>%       # Sort data by date before computing dt
     mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
            lon = as.double(`location.long`),
@@ -124,7 +124,7 @@ new_db <- dat_summary %>%
         # ring id
         ring_id = RingNo,
         # capture date
-        date_start = as.POSIXct(strftime(new_trk$datetime[1], format = "%m/%d/%y"), tz = "GMT", format = "%m/%d/%y"),
+        date_start = date(new_trk$datetime[1]),
         # date of last location
         date_end = NA,
         # name of the bird
