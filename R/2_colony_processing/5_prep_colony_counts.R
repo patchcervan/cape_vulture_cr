@@ -59,8 +59,8 @@ col_counts <- col_counts %>%
 # Identify those colonies with counts ----------------------------------
 
 # First separate those colonies that have been counted recently
-col_counts <- col_counts %>% 
-   filter(year > 2009)
+# col_counts <- col_counts %>% 
+#    filter(year > 2009)
 
 # Calculate the mean count at each of these colonies
 col_counts <- col_counts %>% 
@@ -135,6 +135,7 @@ col_counts <- col_counts %>%
                                # name_new == "Cathedral Peak" ~ "",
                                name_new == "Botswana" ~ "Mannyelong",
                                name_new == "Botswana - Moremi Gorge" ~ "Manong Yeng",
+                               name_new == "Moremi Gorge" ~ "Manong Yeng",
                                name_new == "Cathedral peak (Cockade and Elephant)" ~ "Cockade and Elephant",
                                name_new == "Cathedral Peak (Pampering)" ~ "PamperingA",
                                # name_new == "Cleft Peak" ~ "",
@@ -157,6 +158,7 @@ col_counts <- col_counts %>%
                                name_new == "Mlengana" ~ "Ku-Yeneni",
                                # name_new == "Morristone A" ~ "",
                                name_new == "Motsitseng" ~ "Lower Moremoholo",
+                               name_new == "Msikaba / Mkambati" ~ "Msikaba",
                                name_new == "Mzimkhulu Colony" ~ "Mzimkhulu/Oribi",
                                name_new == "Ndedema Dome" ~ "Ndedema River",
                                name_new == "Ndedema Twin Peak A&B" ~ "Ndedema Buttress",
@@ -219,19 +221,65 @@ col_counts <- col_counts %>%
 col_counts <- col_counts %>% 
    add_count(year, n_nests, total, ad, juv, undet, pairs, chick, fled, name_new, name = "n_recs")
 
-# Remove rows for which year, name_new
+# Remove rows for which year, name_new and counts are repeated
 col_counts <- col_counts %>% 
    arrange(desc(id)) %>% 
    distinct(year, n_nests, total, ad, juv, undet, pairs, chick, fled, name_new, .keep_all = T)
 
-# Order by year and name, remove obsolete columns and save data set
-col_counts %>% 
+# Order by year and name, remove obsolete columns
+col_counts <- col_counts %>% 
    arrange(name_new, year) %>% 
-   dplyr::select(-c(ever, n_recs)) %>% 
-   write.csv("data/working/col_counts_locs.csv", row.names = F)
+   dplyr::select(-c(ever, n_recs))
+
+# Print
+col_counts %>% 
+   print(n = Inf)
+
+# Save
+write.csv("data/working/col_counts_locs.csv", row.names = F)
 
 
+# Summarize counts  - translate to adults and juvs ------------------------
 
+# col_counts <- as_tibble(read.csv("data/working/col_counts_locs.csv"))
+
+# Transform pair or nest counts to adults. If adult counted, then ad_p = ad,
+# if not, ad_p = pairs * 2, if no adult or pair count, then ad_p = n_nests * 2
+col_counts <- col_counts %>% 
+   mutate(ad_p = ifelse(is.na(ad),
+                        if_else(is.na(pairs), n_nests*2, pairs*2),
+                        ad))
+
+# What proportion of juveniles with respect to adults
+col_counts %>% 
+   filter(!is.na(ad_p), !is.na(juv)) %>% 
+   mutate(juv_prop = juv / (ad + juv)) %>% 
+   pull(juv_prop) %>% 
+   hist()
+
+# Accordint to our very basic life-history model, in a steady state,
+# there should be 53% of adults and 32% juveniles (ages 1 to 4).
+# Therefore the number of juvs = 0.32/0.53 * ad = 0.66 * ad
+# However, this seems to be a bit higher than observed. Are juveniles
+# present at the breeding colonies or they are rather at roosts?
+col_counts <- col_counts %>% 
+   mutate(juv_p = ifelse(is.na(juv), round(0.66*ad_p), juv))
+
+# In some colonies only total counts are available, we must divide this
+# into adults and juveniles
+col_counts <- col_counts %>% 
+   mutate(ad_p = if_else(is.na(ad_p), round(0.53*total), ad_p),
+          juv_p = if_else(is.na(juv_p), round(0.32*total), juv_p))
+          
+# Calculate average number of adults and juveniles per colony
+count_summ <- col_counts %>% 
+   group_by(name_new, lon, lat) %>% 
+   summarize(avg_ad = mean(ad_p, na.rm = T),
+             avg_juv = mean(juv_p, na.rm = T)) %>% 
+   ungroup()
+
+# Save count summary
+write_csv(count_summ, file = "data/working/col_count_summary.csv")
 
 
 # For later:
