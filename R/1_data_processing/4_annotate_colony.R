@@ -37,12 +37,12 @@ Rcpp::sourceCpp("R/functions/minDist_cpp.cpp")
 # Read in track ----------------------------------------------------------
 
 # List files that at the keep folder
-trkfiles <- list.files("data/working/bird_tracks/keep/", pattern = "fine.rds")
+trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = "fine.rds")
 
 for(i in 1:length(trkfiles)){
       
       # Read in original files from these birds
-      trk <- readRDS(paste0("data/working/bird_tracks/keep/", trkfiles[i]))
+      trk <- readRDS(paste0("data/working/bird_tracks/in_process/", trkfiles[i]))
       
       # Idenfify bird
       id_sel <- unique(trk$bird_id)
@@ -122,6 +122,6 @@ for(i in 1:length(trkfiles)){
       # Remove geometry and save
       trk %>% 
             dplyr::select(-geometry) %>% 
-            saveRDS(paste0("data/working/bird_tracks/keep/", id_sel, "_col.rds"))
+            saveRDS(paste0("data/working/bird_tracks/in_process/", id_sel, "_col.rds"))
       
 }
