@@ -157,7 +157,10 @@ trk %>%
 
 # Explore speed units of ct birds -----------------------------------------
 
-# Explore ct02
-trk <- readRDS("data/working/bird_tracks/in_process/ct02_mxt.rds")
+# Explore ct08
+trk <- readRDS("data/working/bird_tracks/in_process/ct08_col.rds")
 
-hist(trk$dt[trk$dt < 2])
+hist(trk$spd_h)
+hist(trk$avg_spd)
+
+# there seems to be very little movement no matter what variable we use
