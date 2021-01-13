@@ -21,6 +21,9 @@ trk_files <- list.files("data/working/bird_tracks", pattern = ".rds")
 # Load base maps
 source("R/functions/load_basemap.R")
 
+# Function to make UTM projection
+source("R/functions/makeTmerProj.R")
+
 
 # Birds excluded ----------------------------------------------------------
 
@@ -55,7 +58,6 @@ for(i in 1:length(trk_files)){
         filter(bird_id == id_sel)
     
     
-    
     # General exploration -----------------------------------------------------
     
     db_sel
@@ -63,7 +65,6 @@ for(i in 1:length(trk_files)){
     # Median tracking temporal resolution. This might be very different from the mean
     # and probably more appropiate for regularizing data
     median(trk_sel$dt, na.rm = T)
-    
     
     
     # General plots -----------------------------------------------------------
@@ -190,8 +191,39 @@ for(i in 1:length(trk_files)){
     }
     
     
+    # Calculate avg speed between locs ----------------------------------------
+    
+    # Make spatial object
+    trk_sel <- trk_sel %>% 
+        st_as_sf(coords = c("lon", "lat"), crs = 4326, remove = F)
+    
+    # Make UTM projection
+    tmerproj <- makeTmerProj(trk_sel)
+    
+    # Reproject bird
+    trk_sel <- trk_sel %>% 
+        st_transform(trk_sel, crs = tmerproj)
+    
+    # Calculate avg speed
+    cc <- as.data.frame(st_coordinates(trk_sel)) %>% 
+        rename(x = 1, y = 2)
+    
+    cc <- cc %>% 
+        mutate(dx = lead(x) - x,
+               dy = lead(y) - y,
+               dt = trk_sel$dt,
+               avg_spd = sqrt(dx^2 + dy^2)/(1000*dt))
+    
+    # Add to main data frame
+    trk_sel <- trk_sel %>% 
+        mutate(avg_spd = cc$avg_spd) %>% 
+        st_drop_geometry()
+    
+    # plot(trk_sel$spd_h, trk_sel$avg_spd)
+    
+    
     # Save resampled track ----------------------------------------------------
     
-    saveRDS(trk_sel, paste0("data/working/bird_tracks/keep/", id_sel, "_fine.rds"))
+    saveRDS(trk_sel, paste0("data/working/bird_tracks/in_process/", id_sel, "_fine.rds"))
     
 }
