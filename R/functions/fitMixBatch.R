@@ -58,7 +58,7 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
       
       # Select covariates
       trk_mod <- trk %>% 
-            dplyr::select(spd_h, lon, lat, bird_id, dt, ttnoon, ttnoon_sq,
+            dplyr::select(spd_h, avg_spd, lon, lat, bird_id, dt, ttnoon, ttnoon_sq,
                           dist_col, dist_col_any, dist_sfs,
                           at_col, at_col_any, at_sfs) %>% 
             as.data.frame()
@@ -92,7 +92,14 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
                   filter(nloc > 1)
             
             # Prepare moveHMM data
-            data <- prepData(trk_mod, type = "LL", coordNames = c("lon", "lat"))
+            if(!id_sel %in% c("mb04", "mt02")){
+               data <- prepData(trk_mod, type = "LL", coordNames = c("lon", "lat"))
+            } else {
+               # Hack data because there are bursts with 2 locations.
+               # these are fine for our purposes
+               data <- trk_mod
+               class(data) <- c("moveData", "data.frame")
+            }
             
             # there is an NA in dt that's where warning comes from
             
@@ -145,9 +152,15 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
             
             # FIT MIXTURE MODEL -------------------------------------------------------
             
+         if(id_sel %in% c("wt10", "wt12", "wt14", "wt15")){
+            # these birds seem to have only one state apart from the zero speed
+            trk$state <- NA
+            trk$state[trk$spd_h <= 6] <- 1
+            trk$state[trk$spd_h > 6] <- 2
+         } else {
             # Take records with speed greater than 0 and save proportion of zeros for later
             trk_mod <- trk_mod %>%
-                  filter(spd_h > 0)
+               filter(spd_h > 0)
             
             prop0 <- sum(trk$spd_h == 0) / nrow(trk)
             
@@ -172,12 +185,13 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
             
             # Annotate with states
             states_df <- as.data.frame(mixmod$posterior) %>% 
-                  mutate(state = if_else(V1 > V2, 1, 2))
+               mutate(state = if_else(V1 > V2, 1, 2))
             
             trk$state <- NA
             trk$state[trk$spd_h == 0] <- 1
             trk$state[trk$spd_h > 0] <- states_df$state
             
+            # Plot fit
             plot_mix_comps <- function(x, alpha, beta, lam) {
                   lam * dgamma(x, alpha, 1/beta)
             }
@@ -195,7 +209,7 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
                   ylab("Density")
             
             ggsave(filename = paste0(fig_path, "/", "diag_", id_sel,".png"))
-            
+         }
       }
       
       trk_stt_plot <- ggplot(trk) +
