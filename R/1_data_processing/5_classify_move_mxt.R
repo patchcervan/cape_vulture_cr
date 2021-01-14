@@ -25,9 +25,6 @@ trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = "col.rd
 
 # Fit mixture or HMM in batch ---------------------------------------------
 
-# Remove ma07 because it has not speed information
-trkfiles <- trkfiles[!str_detect(trkfiles, "ma07")]
-
 # Read files
 trks <- map(trkfiles, ~readRDS(paste0("data/working/bird_tracks/in_process/", .x)))
 
@@ -70,32 +67,41 @@ for(i in 1:length(trkfiles)){
                       trk_states)
 }
 
+# Proportions of ma07 should be NA because we don't know the states
+states_df <- states_df %>% 
+   mutate(prop = ifelse(bird_id == "ma07", NA, prop))
+
 # Plot sample sizes
 states_df %>% 
+   filter(!is.na(prop)) %>% 
    filter(state == 2) %>% 
    ggplot() +
    geom_histogram(aes(x = total))
 
 # Plot proportions in moving state (2)
 states_df %>% 
+   filter(!is.na(prop)) %>% 
    filter(state == 2) %>% 
    ggplot() +
    geom_histogram(aes(x = prop))
 
 # Find 90% lower quantile of total number of locations
 states_df %>% 
+   filter(!is.na(prop)) %>% 
    pull(total) %>% 
    unique() %>% 
    quantile(., probs = 0.1, type = 1)
 
 # Find 90% lower quantile of proportions in state 2
 states_df %>% 
+   filter(!is.na(prop)) %>% 
    filter(state == 2) %>% 
    pull(prop) %>% 
    quantile(., 0.1)
 
 # With the 90% birds with more locations, find 90% lower quantile of locations in state 2
 states_df %>% 
+   filter(!is.na(prop)) %>% 
    filter(state == 2, total >= 590) %>% 
    pull(prop) %>% 
    quantile(., 0.1)
@@ -104,8 +110,8 @@ states_df %>%
 # Based on the proportion of locations with moving state 2 of those birds with 590
 # locations or more (91%), I will remove those birds with less than 14%
 states_df <- states_df %>% 
-   filter(state == 2) %>% 
-   mutate(keep = if_else(prop <= 0.145, 0, 1))
+   filter(state == 2 |is.na(state)) %>% 
+   mutate(keep = if_else(prop > 0.145, 1, 0))
 
 # Plots proportion of state 2
 stt_plot <- states_df %>% 

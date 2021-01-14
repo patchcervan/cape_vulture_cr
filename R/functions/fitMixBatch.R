@@ -12,14 +12,17 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
       print(id_sel)
       
       # remove NA speeds
-      trk <- trk %>% 
+      if(id_sel != "ma07"){ # We know ma07 has no speed information, we deal with it later
+         trk <- trk %>% 
             filter(!is.na(spd_h))
-      
-      # And speeds greater than 150 km/h
-      trk <- trk %>% 
+         
+         # And speeds greater than 150 km/h
+         trk <- trk %>% 
             filter(spd_h < 150)
-      
-      if(nrow(trk) == 0) stop("No valid locations")
+         
+         if(nrow(trk) == 0) stop("No valid locations")
+      }
+
       
       # remove night-time locations
       daylight <- trk %>% 
@@ -62,6 +65,13 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
                           dist_col, dist_col_any, dist_sfs,
                           at_col, at_col_any, at_sfs) %>% 
             as.data.frame()
+      
+      # Because ma07 has no speed information we will not process it further
+      if(id_sel == "ma07"){
+         trk$state <- NA
+         saveRDS(trk, paste0(file_path, "/", id_sel, "_mxt.rds"))
+         stop("ma07 has no speed information")
+      }
       
       if(median(trk$dt, na.rm = T) < 3 & !(id_sel %in% c("kr01"))){
             
