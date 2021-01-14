@@ -16,7 +16,7 @@ library(sf)
 bird_db <- read_csv("data/working/bird_db.csv")
 
 # List all tracking files
-trk_files <- list.files("data/working/bird_tracks", pattern = ".rds")
+trk_files <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 # Load base maps
 source("R/functions/load_basemap.R")
@@ -47,7 +47,7 @@ write_csv(bird_db, "data/working/bird_db.csv")
 for(i in 1:length(trk_files)){
     
     # choose one track
-    trk_sel <- read_rds(paste0("data/working/bird_tracks/", trk_files[i])) %>% 
+    trk_sel <- read_rds(paste0("data/working/bird_tracks/in_process/", trk_files[i])) %>% 
         arrange(datetime)
     
     # bird ID
@@ -224,6 +224,9 @@ for(i in 1:length(trk_files)){
     
     # Save resampled track ----------------------------------------------------
     
-    saveRDS(trk_sel, paste0("data/working/bird_tracks/in_process/", id_sel, "_fine.rds"))
+    # Add attribute fine
+    attr(trk, "fine") <- 1
+    
+    saveRDS(trk_sel, paste0("data/working/bird_tracks/in_process/", id_sel, ".rds"))
     
 }

@@ -11,12 +11,16 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
       
       print(id_sel)
       
-      # remove NA speeds
+      # Check previous processing steps
+      if(length(attr(trk, "colony")) == 0){
+         stop("No colony information?")
+      }
+      
+      # remove NA speeds and speeds greater than 150 km/h
       if(id_sel != "ma07"){ # We know ma07 has no speed information, we deal with it later
          trk <- trk %>% 
             filter(!is.na(spd_h))
          
-         # And speeds greater than 150 km/h
          trk <- trk %>% 
             filter(spd_h < 150)
          
@@ -69,7 +73,11 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
       # Because ma07 has no speed information we will not process it further
       if(id_sel == "ma07"){
          trk$state <- NA
-         saveRDS(trk, paste0(file_path, "/", id_sel, "_mxt.rds"))
+         
+         # Add attribute move
+         attr(trk, "move") <- 1
+         
+         saveRDS(trk, paste0(file_path, "/", id_sel, ".rds"))
          stop("ma07 has no speed information")
       }
       
@@ -248,5 +256,8 @@ fitMixBatch <- function(trk, fig_path = getwd(), file_path = getwd()){
       
       ggsave(trk_plots, filename = paste0(fig_path, "/", id_sel, "_states.png"))
       
-      saveRDS(trk, paste0(file_path, "/", id_sel, "_mxt.rds"))
+      # Add attribute move
+      attr(trk, "move") <- 1
+      
+      saveRDS(trk, paste0(file_path, "/", id_sel, ".rds"))
 }

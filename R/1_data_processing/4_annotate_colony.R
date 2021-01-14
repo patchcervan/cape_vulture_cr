@@ -37,7 +37,7 @@ Rcpp::sourceCpp("R/functions/minDist_cpp.cpp")
 # Read in track ----------------------------------------------------------
 
 # List files that at the keep folder
-trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = "fine.rds")
+trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 for(i in 1:length(trkfiles)){
       
@@ -46,6 +46,14 @@ for(i in 1:length(trkfiles)){
       
       # Idenfify bird
       id_sel <- unique(trk$bird_id)
+      
+      print(id_sel)
+      
+      # Check previous processing steps
+      if(length(attr(trk, "fine")) == 0){
+         print("Not fine processed?")
+         next
+      }
       
       # Find projection for data
       tmerproj <- makeTmerProj(st_as_sf(trk, coords = c("lon", "lat"), crs = 4326, remove = F))
@@ -119,9 +127,12 @@ for(i in 1:length(trkfiles)){
       trk <- unnest(trk,
                     cols = -year)
       
+      # Add attribute colony
+      attr(trk, "colony") <- 1
+      
       # Remove geometry and save
       trk %>% 
             dplyr::select(-geometry) %>% 
-            saveRDS(paste0("data/working/bird_tracks/in_process/", id_sel, "_col.rds"))
+            saveRDS(paste0("data/working/bird_tracks/in_process/", id_sel, ".rds"))
       
 }

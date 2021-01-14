@@ -20,13 +20,16 @@ future::plan("sequential") # change if multiple cores and excess RAM are availab
 # We want to use tracks annotated with distance to colonies and SFSs
 
 # List files
-trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = "col.rds")
+trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 
 # Fit mixture or HMM in batch ---------------------------------------------
 
 # Read files
 trks <- map(trkfiles, ~readRDS(paste0("data/working/bird_tracks/in_process/", .x)))
+
+# Keep only tracks with colony info
+trks <- trks[!map_lgl(trks, ~length(attr(.x, "colony")) == 0)]
 
 # Load function to fit batch of mixtures
 source("R/functions/fitMixBatch.R")
@@ -41,7 +44,7 @@ future::plan("sequential")
 # Explore state proportions -----------------------------------------------
 
 # List files annotated with states
-trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = "mxt.rds")
+trkfiles <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 # Make a data frame to store the results
 states_df <- data.frame()
@@ -140,7 +143,7 @@ states_df %>%
 # Explore zeros in state 2 ------------------------------------------------
 
 # Explore mt02
-trk <- readRDS("data/working/bird_tracks/in_process/mt02_mxt.rds")
+trk <- readRDS("data/working/bird_tracks/in_process/mt02.rds")
 
 # Plot lon/lat sequence with state allocation
 trk %>% 
@@ -164,7 +167,7 @@ trk %>%
 # Explore speed units of ct birds -----------------------------------------
 
 # Explore ct08
-trk <- readRDS("data/working/bird_tracks/in_process/ct08_col.rds")
+trk <- readRDS("data/working/bird_tracks/in_process/ct08.rds")
 
 hist(trk$spd_h)
 hist(trk$avg_spd)

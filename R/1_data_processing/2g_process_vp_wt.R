@@ -135,6 +135,6 @@ for(i in c(1:22)){
     
     # Save bird track ---------------------------------------------------------
     
-    saveRDS(trk_proc, file = paste("data/working/bird_tracks/", bird_id, ".rds", sep = ""))
+    saveRDS(trk_proc, file = paste("data/working/bird_tracks/in_process/", bird_id, ".rds", sep = ""))
     
 }
