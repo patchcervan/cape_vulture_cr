@@ -57,6 +57,12 @@ for(i in 1:length(trkfiles)){
    # Idenfify bird
    id_sel <- unique(trk$bird_id)
    
+   # Check previous processing steps
+   if(length(attr(trk, "move")) == 0){
+      print("No move information?")
+      next
+   }
+   
    # Calculate state proportions
    trk_states <- trk %>% 
       group_by(bird_id, state) %>% 
