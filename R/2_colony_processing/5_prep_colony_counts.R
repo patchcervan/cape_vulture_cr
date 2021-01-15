@@ -227,6 +227,15 @@ col_counts <- col_counts %>%
 col_counts <- col_counts %>% 
    add_count(year, n_nests, total, ad, juv, undet, pairs, chick, fled, name_new, name = "n_recs")
 
+# Store new and old names
+names_df <- tibble(name_new = unique(col_counts$name_new))
+
+prev_names <- map(names_df$name_new, ~unique(col_counts$name[str_which(.x, col_counts$name_new)]))
+
+prev_names <- sapply(prev_names, paste, collapse = ", ")
+
+names_df$names_old <- prev_names
+
 # Remove rows for which year, name_new and counts are repeated
 col_counts <- col_counts %>% 
    arrange(desc(id)) %>% 
@@ -283,6 +292,11 @@ count_summ <- col_counts %>%
    summarize(avg_ad = mean(ad_p, na.rm = T),
              avg_juv = mean(juv_p, na.rm = T)) %>% 
    ungroup()
+
+# I want to add a column with previous names for the colonies
+count_summ <- count_summ %>% 
+   left_join(names_df, by = "name_new")
+
 
 # Save count summary
 write_csv(count_summ, file = "data/working/col_count_summary.csv")
