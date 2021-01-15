@@ -205,15 +205,21 @@ col_counts <- left_join(col_counts,
                         dplyr::select(col_locs, id, name, lon, lat, type),
                         by = c("name_new" = "name"))
 
-# Save new count data set
-# write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
 
 
-# Explore this new data set -----------------------------------------------
+# Find colonies that have never been counted ------------------------------
 
-# col_counts <- as_tibble(read.csv("data/working/col_counts_locs.csv"))
+# Add a column to the locations data set that indicates it has ever been counted
+col_locs <- col_locs %>% 
+   mutate(counted = if_else(name %in% c(col_counts$name, col_counts$name_new), 1, 0))
 
-# Remove rows that are classified as roost
+# Save the layer
+write_csv(col_locs, "data/working/colony_data_join.csv")
+
+
+# Explore and edit the count data set ---------------------------------------
+
+# Remove colonies that are classified as roosts
 col_counts <- col_counts %>% 
    filter(type != "Roost")
 
@@ -280,6 +286,8 @@ count_summ <- col_counts %>%
 
 # Save count summary
 write_csv(count_summ, file = "data/working/col_count_summary.csv")
+
+
 
 
 # For later:
