@@ -221,7 +221,7 @@ write_csv(col_locs, "data/working/colony_data_join.csv")
 
 # Remove colonies that are classified as roosts
 col_counts <- col_counts %>% 
-   filter(type != "Roost")
+   filter(!type %in% c("Roost", "Roosting"))
 
 # Which records have repeated name and year
 col_counts <- col_counts %>% 
@@ -235,14 +235,14 @@ col_counts <- col_counts %>%
 # Order by year and name, remove obsolete columns
 col_counts <- col_counts %>% 
    arrange(name_new, year) %>% 
-   dplyr::select(-c(ever, n_recs))
+   dplyr::select(-n_recs)
 
 # Print
 col_counts %>% 
    print(n = Inf)
 
 # Save
-write.csv("data/working/col_counts_locs.csv", row.names = F)
+write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
 
 
 # Summarize counts  - translate to adults and juvs ------------------------
