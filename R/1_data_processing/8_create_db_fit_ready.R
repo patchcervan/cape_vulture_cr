@@ -23,6 +23,9 @@ loc_issues <- read_csv("data/working/problem_birds_locs.csv")
 # Read in birds that are excluded because of movement modes
 mov_issues <- read_csv("data/working/birds_mxt_exclude.csv")
 
+# Read in height issues
+hgt_issues <- read_csv("data/working/problem_birds_height.csv")
+
 # Create new data base to store birds that are model fit ready.
 # We will add the median of dt because it is usually more representative than the mean.
 new_db <- bird_db_all %>% 
