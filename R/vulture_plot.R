@@ -13,7 +13,7 @@ bird_db <- read_csv("data/working/bird_db.csv")
 
 
 # Load bird track
-id_sel <- "kr02"
+id_sel <- "mb01"
 
 trk <- read_csv(paste0("data/working/bird_tracks/", id_sel, ".csv"))
 

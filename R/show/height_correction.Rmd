@@ -1,0 +1,110 @@
+---
+title: "Height correction"
+author: ""
+date: ""
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+options(tidyverse.quiet = TRUE)
+options(sf.quiet = TRUE)
+options(knitr.duplicate.label = "allow")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+rm(list = ls())
+
+library(tidyverse)
+
+
+# Read in data ------------------------------------------------------------
+
+# List birds in the database
+trk_files <- list.files("data/working/bird_tracks/fit_ready", pattern = "height.csv")
+
+
+# Process tracks ----------------------------------------------------------
+
+trk <- read_csv(paste0("data/working/bird_tracks/fit_ready/", trk_files[11]))
+
+id_sel <- unique(trk$bird_id)
+
+
+
+```
+
+
+
+There are some birds for which the height profile looks like this
+
+
+
+```{r raw_alt, echo=FALSE, message=FALSE, warning=FALSE, out.width='75%', fig.align='center', fig.show='hold', fig.cap="Raw altitude"}
+# Plot altitude data
+trk %>% 
+      ggplot(aes(x = t_, y = alt)) +
+      geom_point(alpha = 0.5) +
+      xlab("Date") + ylab("Altitude")
+```
+
+I understand that this is the elevation of the bird above sea level. I have subtracted the ground height based on a digital elevation model (Shuttle Radar Topography Mission). This gives us the raw flight height above ground (figure \ref{fig:raw_hgt}).
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='75%', fig.align='center', fig.show='hold', fig.cap="\\label{fig:raw_hgt}Raw height"}
+# Plot altitude data
+trk %>% 
+      ggplot(aes(x = t_, y = height)) +
+      geom_point(alpha = 0.5) +
+      xlab("Date") + ylab("Raw height")
+```
+
+I see in a comment in the raw data that these tags wrap the altitude to zero when it goes above 2042 meters (please correct me if I am wrong). Asssuming that this is correct, we can take care of two of the levels of heights shown in figure \ref{fig:raw_hgt} (one around zero and one around -2000) by adding 2042 meters to any height reading exceedingly negative. By looking at the plots, I have considered -300 meters to be reasonable (but again please correct me if I am wrong). I tried -1000 first but seemed to exclude some flights that might have reached high heights after wrapping (thus getting close to zero from the negative side).
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='75%', fig.align='center', fig.show='hold', fig.cap="\\label{fig:corr_hgt}Corrected height"}
+# Correct height
+trk <- trk %>% 
+            mutate(hat_hgt = if_else(height < -300, height + 2042, height))
+
+# Plot altitude data
+trk %>% 
+      ggplot(aes(x = t_, y = hat_hgt)) +
+      geom_point(alpha = 0.5) +
+      xlab("Date") + ylab("Corrected height")
+```
+
+This seems to fix the period before 2016 (figure \ref{fig:corr_hgt}), but afterwards there is a new level around -1000 that I am not sure how to deal with. First, I thought of subtracting 2042 again, because maybe bird was flying so high that the tag wrapped twice, but this doesn't seem to work (figure \ref{fig:corr_hgt2}).
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='75%', fig.align='center', fig.show='hold', fig.cap="\\label{fig:corr_hgt2}Twice corrected height"}
+# Correct height
+trk <- trk %>% 
+            mutate(hat_hgt2 = if_else(hat_hgt < -300, hat_hgt + 2042, hat_hgt))
+
+# Plot altitude data
+trk %>% 
+      ggplot(aes(x = t_, y = hat_hgt2)) +
+      geom_point(alpha = 0.5) +
+      xlab("Date") + ylab("Corrected height")
+```
+
+
+In figure \ref{fig:hgtvsalt} we can see a detail 300 height measurements in the period after 2016 before applying any correction, in case it helps.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width='85%', fig.align='center', fig.show='hold', fig.cap="\\label{fig:hgtvsalt}Height (a.g.l.) vs. altitude (a.s.l.)"}
+
+# Plot altitude data
+trk %>% 
+      filter(lubridate::year(t_) == 2016) %>% 
+      slice(100:400) %>% 
+      select(t_, altitude = alt, height) %>% 
+      gather(metric, value, -t_) %>% 
+      ggplot() +
+      geom_point(aes(x = t_, y = value, colour = metric), alpha = 0.5) +
+      geom_line(aes(x = t_, y = value, colour = metric), alpha = 0.5) +
+      xlab("Date") + ylab("Corrected height")
+```

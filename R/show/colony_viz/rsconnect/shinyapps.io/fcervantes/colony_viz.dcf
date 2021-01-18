@@ -1,0 +1,12 @@
+name: colony_viz
+title: colony_viz
+username:
+account: fcervantes
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3481879
+bundleId: 4111361
+url: https://fcervantes.shinyapps.io/colony_viz/
+when: 1610958471.42755
+asMultiple: FALSE
+asStatic: FALSE

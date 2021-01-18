@@ -39,7 +39,7 @@ server <- function(input, output) {
     # Load track
     data <- eventReactive(input$goBird, {
         
-        readr::read_rds(paste0("../../data/working/bird_tracks/in_process/", input$bird_id, "_mxt.rds"))
+        readr::read_rds(paste0("../../data/working/bird_tracks/in_process/", input$bird_id, ".rds"))
         
     })
     
