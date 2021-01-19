@@ -21,18 +21,19 @@ server <- function(input, output) {
         col_join <- readRDS("col_viz_data.rds")
         
         col_join <- col_join %>% 
-            mutate(size = case_when(avg_ad <= 20 ~ 4,
-                           avg_ad > 20 & avg_ad <= 100 ~ 6,
-                           avg_ad > 100 & avg_ad <= 1000 ~ 8,
-                           avg_ad > 1000 ~ 10,
-                           TRUE ~ 2))
+            mutate(size = case_when(avg_ad <= 20 ~ 5,
+                           avg_ad > 20 & avg_ad <= 100 ~ 7,
+                           avg_ad > 100 & avg_ad <= 1000 ~ 9,
+                           avg_ad > 1000 ~ 11,
+                           TRUE ~ 3),
+                   counted = if_else(type == "roost", 2, counted))
         
         # Create a palette that maps factor levels to colors
-        pal <- colorFactor(c("red", "purple"), domain = c(0, 1))
+        pal <- colorFactor(c("red", "purple", "yellow"), domain = c(0, 1, 2))
         
         # Function to modify legend circle size
         addLegendCustom <- function(map, colors, labels, sizes, ...){
-            colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "px; height:", sizes, "px")
+            colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "px; height:", sizes, "px; border:1px solid black")
             labelAdditions <- paste0("<div style='display: inline-block;height: ", 
                                      sizes, "px;margin-top: 4px;line-height: ", sizes, "px;'>", 
                                      labels, "</div>")
@@ -53,8 +54,8 @@ server <- function(input, output) {
                              fillColor = pal(col_join$counted), fillOpacity = 0.5,
                              color = "black", weight = 1, stroke = T, opacity = 1
             ) %>% 
-            addLegendCustom(colors = pal(c(0, rep(1,4))), 
-                            labels = c("no count", "<20", "20-100", "100-1000", ">1000"), sizes = seq(4, 18, length.out = 5),
+            addLegendCustom(colors = pal(c(2, 0, rep(1,4))), 
+                            labels = c("roost", "breed - no count", "<20", "20-100", "100-1000", ">1000"), sizes = c(6,seq(6, 20, length.out = 5)),
                             opacity = 1,
                             position = "bottomright",
                             title = "Adult individuals")
