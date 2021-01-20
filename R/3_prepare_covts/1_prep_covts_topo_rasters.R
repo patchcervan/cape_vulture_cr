@@ -13,6 +13,8 @@ library(raster)
 library(tidyverse)
 library(furrr)
 
+future::plan("multicore")
+
 rm(list = ls())
 
 # Create a data frame with all raster filepaths. 
@@ -35,8 +37,7 @@ for(i in 1:nrow(rfiles)){
     nexteast <- rfiles$east[i] + c(-1, 0, 1)
     nextnorth <- rfiles$north[i] + c(-1, 0, 1)
     
-    nextrfiles <- expand.grid(rfiles$east[i], nextnorth) %>% 
-        rbind(expand.grid(nexteast, rfiles$north[i])) %>% 
+    nextrfiles <- expand.grid(nexteast, nextnorth) %>%
         rename(east = Var1, north = Var2) %>% 
         distinct(east, north) %>% 
         mutate(filename = paste0("data/working/covts_rasters/srtm_", east, "_", north,".tif"))
@@ -85,3 +86,5 @@ for(i in 1:nrow(rfiles)){
     writeRaster(slope, filename = str_replace(targetfile, "srtm", "slope"), overwrite = T)
     writeRaster(vrm3, filename = str_replace(targetfile, "srtm", "vrm3"), overwrite = T)
 }
+
+future::plan("sequential")
