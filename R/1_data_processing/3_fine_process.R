@@ -178,7 +178,7 @@ for(i in 1:length(trk_files)){
         
         trk_xyt <- amt::make_track(trk_sel, .x = lon, .y = lat, .t = datetime, crs = CRS("+init=epsg:4326"), all_cols = T)
         
-        trk_xyt <- track_resample(trk_xyt, rate = minutes(10), tolerance = minutes(2))
+        trk_xyt <- track_resample(trk_xyt, rate = minutes(15), tolerance = minutes(2))
         
         # Remove burst column and change names
         trk_xyt <- trk_xyt %>% 
@@ -187,7 +187,7 @@ for(i in 1:length(trk_files)){
             dplyr::select(names(trk_sel))
         
         # Substitute resampled track
-        trk_sel <- trk_xyt
+        trk_sel <- as.data.frame(trk_xyt)
     }
     
     
@@ -225,7 +225,7 @@ for(i in 1:length(trk_files)){
     # Save resampled track ----------------------------------------------------
     
     # Add attribute fine
-    attr(trk, "fine") <- 1
+    attr(trk_sel, "fine") <- 1
     
     saveRDS(trk_sel, paste0("data/working/bird_tracks/in_process/", id_sel, ".rds"))
     
