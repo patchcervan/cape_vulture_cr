@@ -7,6 +7,7 @@
 findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0.1, sp_proj = 4326, plotkde = T){
     
     require(raster)
+    require(suncalc)
     
     # x needs to be a spatial object
     if(!"sf" %in% class(x)) stop("x is not a spatial object")
@@ -20,14 +21,13 @@ findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0
     # To find the colony, we first calculate the point with maximum density of locations
     
     # We are particularly interested in locations in early morning
-    
     sunr <- x %>% 
         st_drop_geometry() %>%
-        dplyr::select(lon, lat) %>% 
-        as.matrix() %>% 
-        maptools::sunriset(dateTime = x$datetime, POSIXct.out = T)
+        dplyr::select(datetime, lat, lon) %>% 
+        mutate(date = date(datetime)) %>% 
+        suncalc::getSunlightTimes(data = ., keep = "sunrise")
     
-    x$ttsunr <- as.numeric(x$datetime - sunr$time)/3600
+    x$ttsunr <- difftime(x$datetime, sunr$sunrise, units = "hours")
     
     # Filter locations that are within two hours of sunrise
     x <- x %>% 
