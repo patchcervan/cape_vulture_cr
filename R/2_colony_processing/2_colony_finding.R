@@ -26,7 +26,7 @@ colonies <- read_csv("data/working/colony_data_join.csv") %>%
     st_as_sf(coords = c("lon", "lat"), crs = 4326, dim = "XY", remove = FALSE)
 
 # Read in bird tracking files
-trk_files <- list.files("data/working/bird_tracks/keep/", pattern = "fine.rds")
+trk_files <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 
 # Select one track ---------------------------------------------------------
@@ -34,11 +34,17 @@ trk_files <- list.files("data/working/bird_tracks/keep/", pattern = "fine.rds")
 for(i in 1:length(trk_files)){
     
     # Load one bird
-    trk <- readRDS(paste0("data/working/bird_tracks/keep/", trk_files[i]))
+    trk <- readRDS(paste0("data/working/bird_tracks/in_process/", trk_files[i]))
     
     id_sel <- unique(trk$bird_id)
     
     print(id_sel)
+    
+    # Check if track has been processed or it was excluded early on
+    if(length(attr(trk, "fine")) == 0){
+        print("This bird was excluded")
+        next
+    }
     
     # Tracking period
     print(range(trk$datetime))
