@@ -266,7 +266,7 @@ for(i in 1:length(trk_files)){
     # Create log of step length and cosine of turning angle. These are used later in the mov. model
     use_rdm <- use_rdm %>% 
         mutate(hourday = lubridate::hour(t1_),
-               ttnoon = 12 - hourday,
+               ttnoon = hourday - 12,
                ttnoon_sq = (ttnoon)^2,
                log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
                cos_ta = cos(ta_))
