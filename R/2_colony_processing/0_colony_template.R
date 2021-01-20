@@ -27,7 +27,9 @@ colony_db <- tibble(
     # distance between computed and known closest colony (in kilometres)
     dist = double(),
     # code of closest known colony to computed colony
-    known_id = character()
+    known_id = character(),
+    # zone classification of the computed colony location
+    zone = character()
 )
 
 # Save template
