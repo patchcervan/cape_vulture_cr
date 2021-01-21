@@ -12,7 +12,7 @@ library(mixtools)
 library(lubridate)
 library(furrr)
 
-future::plan("sequential") # change if multiple cores and excess RAM are available
+future::plan("multicore") # change if multiple cores and excess RAM are available
 
 
 # Read in data ------------------------------------------------------------
@@ -111,7 +111,7 @@ states_df %>%
 # With the 90% birds with more locations, find 90% lower quantile of locations in state 2
 states_df %>% 
    filter(!is.na(prop)) %>% 
-   filter(state == 2, total >= 590) %>% 
+   filter(state == 2, total >= 639) %>% 
    pull(prop) %>% 
    quantile(., 0.1)
 
@@ -119,8 +119,8 @@ states_df %>%
 # Based on the proportion of locations with moving state 2 of those birds with 590
 # locations or more (91%), I will remove those birds with less than 14%
 states_df <- states_df %>% 
-   filter(state == 2 |is.na(state)) %>% 
-   mutate(keep = if_else(prop > 0.145, 1, 0))
+   filter(state == 2) %>% 
+   mutate(keep = if_else(prop > 0.14, 1, 0))
 
 # Plots proportion of state 2
 stt_plot <- states_df %>% 
