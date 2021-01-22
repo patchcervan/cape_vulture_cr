@@ -127,7 +127,8 @@ for(i in 1:length(trkfiles)){
       trk <- unnest(trk,
                     cols = -year)
       
-      # Add attribute colony
+      # Add attribute colony (attribute fine is dropped for some reason so put it back)
+      attr(trk, "fine") <- 1
       attr(trk, "colony") <- 1
       
       # Remove geometry and save
