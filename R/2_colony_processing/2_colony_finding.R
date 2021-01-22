@@ -9,6 +9,8 @@ library(tidyverse)
 library(sf)
 library(furrr)
 
+future::plan("multicore")
+
 
 # Load data ---------------------------------------------------------------
 
@@ -29,7 +31,7 @@ colonies <- read_csv("data/working/colony_data_join.csv") %>%
 trk_files <- list.files("data/working/bird_tracks/in_process/", pattern = ".rds")
 
 
-# Select one track ---------------------------------------------------------
+# Process tracks ----------------------------------------------------------
 
 for(i in 1:length(trk_files)){
     
@@ -78,7 +80,8 @@ for(i in 1:length(trk_files)){
     
     trk <- trk %>% 
         mutate(colony = future_map(trk$data, ~findColony(.x, coords = c("lon", "lat"),
-                                                         timevar = "datetime", bw = 0.1, plotkde = F)))
+                                                         timevar = "datetime", bw = 0.1, 
+                                                         early_wt = 2, plotkde = F)))
     
     trk_col <- unnest(trk, cols = c(year, colony)) %>% 
         dplyr::select(year, geometry) %>% 
@@ -155,9 +158,18 @@ for(i in 1:length(trk_files)){
         known_id = known_col$id
     )
     
+    # Define a zone for the colonies
+    new_entry <- new_entry %>% 
+        mutate(zone = case_when(dens_lon > 24 & dens_lat > -27.5 ~ 1,
+                                dens_lon > 24 & dens_lat < -27.5 ~ 2,
+                                dens_lon < 24 & dens_lat < -27.5 ~ 3,
+                                dens_lon < 24 & dens_lat > -27.5 ~ 4))
+    
     # add new entry to data base
     colony_db <- rbind(colony_db, new_entry)
     
 }
+
+future::plan("sequential")
 
 write_csv(colony_db, file = "data/working/colony_db.csv")
