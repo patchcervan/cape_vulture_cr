@@ -4,10 +4,12 @@
 # creates a spatial point at location of maximum density
 
 
-findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0.1, sp_proj = 4326, plotkde = T){
+findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0.1, sp_proj = 4326,
+                       early_wt = NULL, plotkde = F){
     
     require(raster)
     require(suncalc)
+    require(lubridate)
     
     # x needs to be a spatial object
     if(!"sf" %in% class(x)) stop("x is not a spatial object")
@@ -20,7 +22,7 @@ findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0
     
     # To find the colony, we first calculate the point with maximum density of locations
     
-    # We are particularly interested in locations in early morning
+    # We are particularly interested in locations at night and in early morning
     sunr <- x %>% 
         st_drop_geometry() %>%
         dplyr::select(datetime, lat, lon) %>% 
@@ -29,15 +31,23 @@ findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0
     
     x$ttsunr <- difftime(x$datetime, sunr$sunrise, units = "hours")
     
-    # Filter locations that are within two hours of sunrise
-    x <- x %>% 
-        filter(abs(ttsunr) < 2)
+    # Weight (replicate) locations that are early than two hours after sunrise
+    if(!is.null(early_wt)){
+        y <- x %>%
+            filter(ttsunr < 2)
+        
+        for(i in 1:(early_wt-1)){
+            x <- rbind(x, y)
+        }
+    }
     
+    # Create a grid
     dims <- as.matrix(raster::extent(x), byrow = F)
     m <- if(str_detect(st_crs(x)$proj4string, "longlat")) 150 else 15
     nr <- m * max(1, (1 + log(abs(diff(dims[2,])))))
     nc <- m * max(1, (1 + log(abs(diff(dims[1,])))))
     
+    # calculate density
     kdens <- spatialEco::sp.kde(as(x, "Spatial"), bw = bw, 
                                 newdata = as.vector(extent(x)),
                                 nr = nr, nc = nc)
