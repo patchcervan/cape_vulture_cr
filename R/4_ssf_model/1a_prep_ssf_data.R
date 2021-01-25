@@ -322,12 +322,18 @@ for(i in 1:length(trk_files)){
              cos_ta = cos(ta_))
    
    # Create also a time resolution variable
+   # Recalculate dt in hours
    use_rdm <- use_rdm %>% 
-      mutate(res = case_when(dt_ > 0.5*60 & dt_ <= 1.5*60 ~ 1,
-                             dt_ > 1.5*60 & dt_ <= 2.5*60 ~ 2,
-                             dt_ > 2.5*60 & dt_ <= 3.5*60 ~ 3,
-                             dt_ > 3.5*60 & dt_ <= 5*60 ~ 4,
-                             dt_ > 5*60 & dt_ <= 12*60 ~ 8,
+      mutate(dt_ = as.numeric(dt_, units = "hours"))
+   
+   meandt <- mean(use_rdm$dt_, na.rm = T)
+   
+   use_rdm <- use_rdm %>% 
+      mutate(res = case_when(meandt > 0.5 & meandt <= 1.5 ~ 1,
+                             meandt > 1.5 & meandt <= 2.5 ~ 2,
+                             meandt > 2.5 & meandt <= 3.5 ~ 3,
+                             meandt > 3.5 & meandt <= 5 ~ 4,
+                             meandt > 5 & meandt <= 12 ~ 8,
                              TRUE ~ 24))
    
    # Add bird to data frame --------------------------------------------------
@@ -382,6 +388,14 @@ model_data %>%
 model_data <- model_data %>%
    mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
 
+# There is only one bird with resolution 3 and one with resolution 8
+rowSums(table(model_data$res, model_data$bird_id) != 0)
+
+# We'll transfer them to resolution 4 and 24 respectively
+model_data <- model_data %>% 
+   mutate(res = case_when(res == 3 ~ 4,
+                          res == 8 ~ 24,
+                          TRUE ~ res))
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
@@ -393,7 +407,7 @@ model_data <- model_data %>%
           zone_fct = zone) %>%
    spread(zone, i, fill = 0) %>%
    mutate(i = 1,
-          res = factor(res, levels = c(1, 8, 24), labels = paste("res", c(1, 8, 24), sep = "_")),
+          res = factor(res, levels = c(1, 2, 4, 24), labels = paste("res", c(1, 2, 4, 24), sep = "_")),
           res_fct = res) %>%
    spread(res, i, fill = 0) %>%
    mutate(i = 1,
