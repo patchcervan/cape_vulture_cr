@@ -361,5 +361,47 @@ for(i in 1:length(trkfiles)){
    print(i)
 }
 
-# Save data for model fitting
+
+# Prepare variables -------------------------------------------------------
+
+# Habitat metadata
+hab_meta <- read_csv("data/working/copernicus_codes.csv")
+
+# Change habitat codes
+model_data <- model_data %>%
+   left_join(dplyr::select(hab_meta, "Map code", "class_code"), by = c("land_use" = "Map code")) %>%
+   rename(land_cov = class_code)
+
+# There are a few NA NDVI corresponding mostly to locations over the ocean.
+# I will assign the mean NDVI value
+model_data %>%
+   filter(is.na(NDVI_mean)) %>%
+   group_by(land_cov) %>%
+   summarize(n = n())
+
+model_data <- model_data %>%
+   mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
+
+
+# Make dummy variables from factors (I also keep the factors)
+model_data <- model_data %>%
+   mutate(i = 1,
+          land_cov_fct = land_cov) %>%
+   spread(land_cov, i, fill = 0) %>%
+   mutate(i = 1,
+          zone = factor(zone, levels = 1:4, labels = paste("z", 1:4, sep = "_")),
+          zone_fct = zone) %>%
+   spread(zone, i, fill = 0) %>%
+   mutate(i = 1,
+          res = factor(res, levels = c(1, 8, 24), labels = paste("res", c(1, 8, 24), sep = "_")),
+          res_fct = res) %>%
+   spread(res, i, fill = 0) %>%
+   mutate(i = 1,
+          age = factor(age, levels = c("juv", "subad", "ad")),
+          age_fct = age) %>%
+   spread(age, i, fill = 0)
+
+
+# Save data ---------------------------------------------------------------
+
 saveRDS(model_data, "data/working/data_ssf_ready.rds")
