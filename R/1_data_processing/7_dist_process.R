@@ -70,16 +70,18 @@ dist_summ %>%
       ggplot() +
       geom_point(aes(x = avg_dist, y = bird_id, colour = age)) +
       theme(axis.text.y = element_text(size = 8))
+ggsave("output/avg_dist_day_pt.png")
 
 dist_summ %>% 
    ggplot() +
    geom_histogram(aes(avg_dist, ..density..), colour = "black", fill = "white") +
    geom_density(aes(x = avg_dist))
+ggsave("output/avg_dist_day_hist.png")
 
 dist_summ %>% 
       ggplot() +
       geom_histogram(aes(avg_dist, ..density..), colour = "black", fill = "white") +
       geom_density(aes(x = avg_dist)) +
       facet_wrap("age", nrow = 2)
-      
+ggsave("output/avg_dist_day_age_hist.png")      
 
