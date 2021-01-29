@@ -62,7 +62,6 @@ col_counts <- col_counts %>%
 # col_counts <- col_counts %>% 
 #    filter(year > 2009)
 
-# Calculate the mean count at each of these colonies
 col_counts <- col_counts %>% 
       dplyr::select(1,2,4:11)
 
@@ -220,6 +219,11 @@ write_csv(col_locs, "data/working/colony_data_join.csv")
 # Explore and edit the count data set ---------------------------------------
 
 # Remove colonies that are classified as roosts
+col_counts %>% 
+   filter(type %in% c("Roost", "Roosting")) %>% 
+   arrange(name_new, year) %>% 
+   print(n = Inf)
+
 col_counts <- col_counts %>% 
    filter(!type %in% c("Roost", "Roosting"))
 
