@@ -18,7 +18,7 @@ findColony <- function(x, coords = c("lon", "lat"), timevar = "datetime", bw = 0
     x <- x %>% 
         rename(lon = coords[1],
                lat = coords[2],
-               datetime = timevar)
+               datetime = all_of(timevar))
     
     # To find the colony, we first calculate the point with maximum density of locations
     
