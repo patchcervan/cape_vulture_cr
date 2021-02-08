@@ -33,4 +33,4 @@ colony_db <- tibble(
 )
 
 # Save template
-write_rds(colony_db, path = "data/working/colony_db_template.rds")
+saveRDS(colony_db, file = "data/working/colony_db_template.rds")

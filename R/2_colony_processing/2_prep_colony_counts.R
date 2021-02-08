@@ -44,7 +44,6 @@ col_counts$pairs[str_which(col_counts$pairs, "\\+")]
 
 col_counts$total[str_which(col_counts$total, "\\+")] <- 45
 
-
 # Fix numeric columns
 col_counts <- col_counts %>% 
       mutate(total = as.numeric(total),
@@ -62,6 +61,7 @@ col_counts <- col_counts %>%
 # col_counts <- col_counts %>% 
 #    filter(year > 2009)
 
+# Remove some uninteresting columns
 col_counts <- col_counts %>% 
       dplyr::select(1,2,4:11)
 
@@ -77,12 +77,6 @@ col_counts <- col_counts %>%
    filter(ever == 1)
 
 
-# Identify and match colony names -----------------------------------------
-
-sort(unique(col_counts$name))
-sort(unique(col_locs$name))
-
-
 # Join counts and locations -----------------------------------------------
 
 col_data <- left_join(col_counts,
@@ -92,14 +86,25 @@ col_data <- left_join(col_counts,
 col_data %>% 
       print(n = Inf)
 
+# How many roosts have counts
+col_data %>% 
+   filter(type %in% c("Roost", "Roosting")) %>% 
+   print(n = Inf)
+
+# How many sites are both roosts and breeding colonies
+col_data %>% 
+   group_by(name) %>% 
+   summarize(types = unique(type)) %>% 
+   print(n = Inf)
+
 # How many colonies with counts don't have location
 summary(col_data$lat)
 
 # Names of colonies with no location
-sort(col_data$name[is.na(col_data$lat)])
+sort(unique(col_data$name[is.na(col_data$lat)]))
 
 # Names of colonies with location
-sort(col_locs$name)
+sort(unique(col_locs$name))
 
 # Try to find approximate matches
 names_target <- col_counts$name
@@ -112,7 +117,11 @@ for(i in 1:nrow(matches)){
    matches[i,2] <- if(length(match) == 0) NA else match[1]
 }
 
-matches
+matches %>%
+   as.data.frame() %>% 
+   rename(name_target = 1, name_match = 2) %>% 
+   distinct() %>% 
+   arrange(name_target)
 
 # change names in count data
 col_counts <- col_counts %>% 
@@ -124,8 +133,7 @@ print(col_counts, n = Inf)
 # Fix non-matching entries manually ---------------------------------------
 
 # what names still need to find
-matches[is.na(matches[,2]),1]
-
+unique(matches[is.na(matches[,2]),1])
 
 col_counts <- col_counts %>% 
    mutate(name_new = case_when(name_new == "Amphitheater - Ribbon Falls" ~ "Ganabu",
@@ -190,7 +198,11 @@ for(i in 1:nrow(matches)){
    matches[i,2] <- if(length(match) == 0) NA else match[1]
 }
 
-matches
+matches %>%
+   as.data.frame() %>% 
+   rename(name_target = 1, name_match = 2) %>% 
+   distinct() %>% 
+   arrange(name_target)
 
 # what names still need to find
 matches[is.na(matches[,2]),1]
@@ -204,6 +216,22 @@ col_counts <- left_join(col_counts,
                         dplyr::select(col_locs, id, name, lon, lat, type),
                         by = c("name_new" = "name"))
 
+# Change the type of colony to just breeding or roosting
+col_counts <- mutate(col_counts,
+                     type = if_else(type %in% c("Roost", "Roosting"), "roost", "breed"))
+
+col_counts %>% 
+   distinct(name_new, lon, lat, id, type) %>% 
+   arrange(name_new) %>% 
+   print(n = Inf)
+
+# Find colonies that are both roost and breeding
+col_counts %>% 
+   distinct(name_new, lon, lat, id, type) %>% 
+   dplyr::select(name_new, type) %>% 
+   mutate(id = row_number(),
+          i = 1) %>% 
+   spread(type, i)
 
 
 # Find colonies that have never been counted ------------------------------
@@ -218,14 +246,11 @@ write_csv(col_locs, "data/working/colony_data_join.csv")
 
 # Explore and edit the count data set ---------------------------------------
 
-# Remove colonies that are classified as roosts
-col_counts %>% 
-   filter(type %in% c("Roost", "Roosting")) %>% 
-   arrange(name_new, year) %>% 
-   print(n = Inf)
+# From here I might want to separate roosts from colonies
+roost_counts <- col_counts %>% 
+   filter(type == "roost")
 
-col_counts <- col_counts %>% 
-   filter(!type %in% c("Roost", "Roosting"))
+roost_counts %>% print(n = Inf)
 
 # Which records have repeated name and year
 col_counts <- col_counts %>% 
@@ -254,6 +279,47 @@ col_counts <- col_counts %>%
 col_counts %>% 
    print(n = Inf)
 
+# There might be sites that are classified both as roosts and breeding colonies
+col_counts %>% 
+   group_by(name_new) %>% 
+   summarize(type = unique(type)) %>% 
+   print(n = Inf)
+   
+# This will need to be fixed later
+
+   # Transform pair or nest counts to adults. If adult counted, then ad_p = ad,
+   # if not, ad_p = pairs * 2, if no adult or pair count, then ad_p = n_nests * 2
+   col_counts <- col_counts %>% 
+      mutate(ad_p = ifelse(is.na(ad),
+                           if_else(is.na(pairs), n_nests*2, pairs*2),
+                           ad))
+   
+   # What proportion of juveniles with respect to adults
+   col_counts %>% 
+      filter(!is.na(ad_p), !is.na(juv)) %>% 
+      mutate(juv_prop = juv / (ad + juv)) %>% 
+      pull(juv_prop) %>% 
+      hist()
+   
+   col_counts %>% 
+      filter(!is.na(ad_p), !is.na(juv)) %>% 
+      mutate(juv_prop = juv / (ad + juv)) %>%
+      ggplot() +
+      geom_point(aes(x = ad_p, y = juv_prop))
+   # According to our very basic life-history model, in a steady state,
+   # there should be 53% of adults and 32% juveniles (ages 1 to 4).
+   # Therefore the number of juvs = 0.32/0.53 * ad = 0.66 * ad
+   # However, this seems to be a bit higher than observed. Are juveniles
+   # present at the breeding colonies or they are rather at roosts?
+   col_counts <- col_counts %>% 
+      mutate(juv_p = ifelse(is.na(juv), round(0.66*ad_p), juv))
+   
+   # In some colonies only total counts are available, we must divide this
+   # into adults and juveniles
+   col_counts <- col_counts %>% 
+      mutate(ad_p = if_else(is.na(ad_p), round(0.53*total), ad_p),
+             juv_p = if_else(is.na(juv_p), round(0.32*total), juv_p))
+   
 # Save
 write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
 
@@ -261,38 +327,10 @@ write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
 # Summarize counts  - translate to adults and juvs ------------------------
 
 # col_counts <- as_tibble(read.csv("data/working/col_counts_locs.csv"))
-
-# Transform pair or nest counts to adults. If adult counted, then ad_p = ad,
-# if not, ad_p = pairs * 2, if no adult or pair count, then ad_p = n_nests * 2
-col_counts <- col_counts %>% 
-   mutate(ad_p = ifelse(is.na(ad),
-                        if_else(is.na(pairs), n_nests*2, pairs*2),
-                        ad))
-
-# What proportion of juveniles with respect to adults
-col_counts %>% 
-   filter(!is.na(ad_p), !is.na(juv)) %>% 
-   mutate(juv_prop = juv / (ad + juv)) %>% 
-   pull(juv_prop) %>% 
-   hist()
-
-# Accordint to our very basic life-history model, in a steady state,
-# there should be 53% of adults and 32% juveniles (ages 1 to 4).
-# Therefore the number of juvs = 0.32/0.53 * ad = 0.66 * ad
-# However, this seems to be a bit higher than observed. Are juveniles
-# present at the breeding colonies or they are rather at roosts?
-col_counts <- col_counts %>% 
-   mutate(juv_p = ifelse(is.na(juv), round(0.66*ad_p), juv))
-
-# In some colonies only total counts are available, we must divide this
-# into adults and juveniles
-col_counts <- col_counts %>% 
-   mutate(ad_p = if_else(is.na(ad_p), round(0.53*total), ad_p),
-          juv_p = if_else(is.na(juv_p), round(0.32*total), juv_p))
           
 # Calculate average number of adults and juveniles per colony
 count_summ <- col_counts %>% 
-   group_by(name_new, lon, lat) %>% 
+   group_by(name_new, lon, lat, type) %>% 
    summarize(avg_ad = mean(ad_p, na.rm = T),
              avg_juv = mean(juv_p, na.rm = T)) %>% 
    ungroup()

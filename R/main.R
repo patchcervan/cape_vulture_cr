@@ -9,10 +9,8 @@ library(tidyverse)
 # Load scripts
 scripts <- dir("R/1_data_processing")
 
-# remove the "main.R" (current script)
-scripts <- scripts[str_detect(scripts, "main", negate = T)]
-
-# remove the creation of templates
+# remove the creation of templates. If you want to overwrite templates you will
+# have to run the scripts directly
 scripts <- scripts[str_detect(scripts, "0", negate = T)]
 
 # Run the processing scripts for specific birds
@@ -25,13 +23,25 @@ for(f in 1:length(proc)){
     
     # Need to reload because of the rm functions in the scripts
     scripts <- dir("R/1_data_processing")
-    scripts <- scripts[str_detect(scripts, "main", negate = T)]
     scripts <- scripts[str_detect(scripts, "0", negate = T)]
     proc <- scripts[1:18]
     
     print(f)
     
     source(paste0("R/1_data_processing/", proc[f]))
+}
+
+
+
+# Prepare colony data -----------------------------------------------------
+
+# Load scripts
+scripts <- dir("R/2_colony_processing")
+
+# Run the processing scripts for colonies
+for(s in seq_along(scripts)){
+    print(f)
+    source(paste0("R/2_colony_processing/", proc[f]))
 }
 
 

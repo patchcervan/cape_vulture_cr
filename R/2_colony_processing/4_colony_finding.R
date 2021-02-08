@@ -9,7 +9,7 @@ library(tidyverse)
 library(sf)
 library(furrr)
 
-future::plan("multicore")
+future::plan("multisession")
 
 
 # Load data ---------------------------------------------------------------
@@ -23,7 +23,7 @@ source("R/functions/load_basemap.R")
 # Ignore warnings because these are auxiliary maps - precision is not important now.
 
 # Read in colony data
-colonies <- read_csv("data/working/colony_data_join.csv") %>% 
+colonies <- read_csv("data/working/colony_data_all_upt.csv") %>% 
     # Make a spatial object
     st_as_sf(coords = c("lon", "lat"), crs = 4326, dim = "XY", remove = FALSE)
 
