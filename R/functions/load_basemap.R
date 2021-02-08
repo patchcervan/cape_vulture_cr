@@ -29,6 +29,6 @@ utm <- st_crop(utm,
                ymin = -35, ymax = -20)
 
 # Calculate polygon centroids
-utm <- utm %>% 
+utm <- utm %>%
     mutate(lon = st_coordinates(st_centroid(utm))[,1],
            lat = st_coordinates(st_centroid(utm))[,2])
