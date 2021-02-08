@@ -1,6 +1,7 @@
 library(tidyverse)
 library(sf)
 library(lubridate)
+library(amt)
 
 rm(list= ls())
 
@@ -37,51 +38,72 @@ for(i in 1:length(trk_files)){
             next
       }
       
-      # Make spatial object and reproject
+      # Make spatial object
       trk <- st_as_sf(trk, coords = c("lon", "lat"), crs = 4326, remove = F)
       
+      # Define projection
       tmerproj <- makeTmerProj(trk)
       
+      # Transform to projected coordinate system
       trk <- st_transform(trk, crs = tmerproj)
       
-      # calculate distance traveled
-      cc <- st_coordinates(trk)
-      
+      # Make amt track
       trk <- trk %>% 
-            mutate(dx = lead(cc[,1]) - cc[,1],
-                   dy = lead(cc[,2]) - cc[,2],
-                   dist = sqrt(dx^2 + dy^2))
+         mutate(x = st_coordinates(.)[,1],
+                y = st_coordinates(.)[,2]) %>% 
+         make_track(x, y, datetime, all_cols = T, crs = CRS("+proj=longlat +datum=WGS84 +no_defs"))
       
+      # Resample and keep only those bursts that allow step and angle calculation
+      new_trk <- trk %>% 
+         track_resample(rate = hours(24), tolerance = minutes(120)) %>% 
+         filter_min_n_burst(min_n = 3)
+      
+      # Create steps object
+      new_trk <- new_trk %>% 
+         dplyr::select(x_, y_, t_, bird_id, age, burst_) %>% 
+         steps_by_burst(keep_cols = 'end')
+      
+      # Summarize step-lengths
       dist_df <- rbind(dist_df,
-                       trk %>% 
-                             st_drop_geometry() %>% 
-                             dplyr::select(bird_id, datetime, dt, age, dist))
+                       new_trk %>% 
+                          group_by(bird_id,age) %>% 
+                          summarize(avg_km = mean(sl_/1000, na.rm = T),
+                                    sd_km = sd(sl_/1000, na.rm = T),
+                                    avg_dt = mean(dt_, na.rm = T),
+                                    sd_dt = sd(dt_, na.rm = T)))
       
 }      
 
-dist_summ <- dist_df %>%
-      mutate(day = date(datetime)) %>% 
-      group_by(bird_id, age, day) %>% 
-      summarize(sum_dist = sum(dist, na.rm = T)) %>% 
-      group_by(bird_id, age) %>% 
-      summarize(avg_dist = mean(sum_dist, na.rm = T)/1000)
 
-dist_summ %>% 
+dist_df %>% 
       ggplot() +
-      geom_point(aes(x = avg_dist, y = bird_id, colour = age)) +
+      geom_point(aes(x = avg_km, y = bird_id, colour = age)) +
       theme(axis.text.y = element_text(size = 8))
-ggsave("output/avg_dist_day_pt.png")
 
-dist_summ %>% 
+
+dist_df %>% 
    ggplot() +
-   geom_histogram(aes(avg_dist, ..density..), colour = "black", fill = "white") +
-   geom_density(aes(x = avg_dist))
+   geom_histogram(aes(avg_km, ..density..), colour = "black", fill = "white") +
+   geom_density(aes(x = avg_km))
 ggsave("output/avg_dist_day_hist.png")
 
-dist_summ %>% 
+dist_df %>% 
       ggplot() +
-      geom_histogram(aes(avg_dist, ..density..), colour = "black", fill = "white") +
-      geom_density(aes(x = avg_dist)) +
+      geom_histogram(aes(avg_km, ..density..), colour = "black", fill = "white") +
+      geom_density(aes(x = avg_km)) +
       facet_wrap("age", nrow = 2)
 ggsave("output/avg_dist_day_age_hist.png")      
 
+dist_df %>% 
+   arrange(avg_km) %>%
+   mutate(bird_id = factor(bird_id)) %>% 
+   ggplot() +
+   geom_pointrange(aes(x = avg_km, y = reorder(bird_id, avg_km),
+                       xmin = avg_km - sd_km, xmax = avg_km + sd_km,
+                       colour = age)) +
+   ylab("Bird ID") + xlab("Avg km per day") + 
+   theme(axis.text.y = element_text(size = 8))
+ggsave("output/avg_dist_day_pt.png") 
+
+dist_df %>% 
+   filter(avg_km < 10)

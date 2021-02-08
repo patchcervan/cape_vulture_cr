@@ -21,7 +21,7 @@ library(Rcpp)
 colony_db <- read_csv("data/working/colony_db.csv") 
 
 # Read in roost and colony data
-colony_all <- read_csv("data/working/colony_data_join.csv")
+colony_all <- read_csv("data/working/colony_data_all_upt.csv")
 
 # Load restaurant data
 sfs <- read_csv("data/working/restaurants.csv")

@@ -12,7 +12,7 @@ library(mixtools)
 library(lubridate)
 library(furrr)
 
-future::plan("multicore") # change if multiple cores and excess RAM are available
+future::plan("multisession") # change if multiple cores and excess RAM are available
 
 
 # Read in data ------------------------------------------------------------

@@ -13,7 +13,6 @@ scripts <- dir("R/1_data_processing")
 # have to run the scripts directly
 scripts <- scripts[str_detect(scripts, "0", negate = T)]
 
-# Run the processing scripts for specific birds
 
 # Run processing scripts for specific birds -------------------------------
 
@@ -32,7 +31,6 @@ for(f in 1:length(proc)){
 }
 
 
-
 # Prepare colony data -----------------------------------------------------
 
 # Load scripts
@@ -45,7 +43,7 @@ for(s in seq_along(scripts)){
 }
 
 
-# Run other general scripts -----------------------------------------------
+# Run other processing scripts -----------------------------------------------
 
 # Run fine processing: exclude certain birds, cut out certain periods, change ages for
 # long term tracking, re-sample very high resolution tracks
@@ -60,9 +58,35 @@ source("R/1_data_processing/4_colony_process.R")
 # (from "Explore state proportions") that must be ran in the local script. Do it manually.
 source("R/1_data_processing/5_move_mode_process.R")
 
+
+# Prepare raster covariates -----------------------------------------------
+
+# Create slope and ruggedness rasters from elevation. Also set sea level = 0
+# Takes a while
+source("R/3_prepare_covts/1_prep_covts_topo_rasters.R")
+
+# Re-classify habitats and create a csv file with the codes
+source("R/3_prepare_covts/2_prep_land_cover.R")
+
+# Create a single shapefile with protected areas
+source("R/3_prepare_covts/3_prep_prot_areas.R")
+
+# Identify steep slopes to calculate distance to them later
+# Might have to unload certain packages for it to run properly (best just re-start R)
+source("R/3_prepare_covts/4_prep_dist_slopes.R")
+
+# Prepare the supplementary feeding sites file for processing
+source("R/3_prepare_covts/5_prep_covts_restaurants.R")
+
+
+# Run the last processing scripts -----------------------------------------------
+
 # Run script to process heights and correct for heights that wrap to zero when
 # going over 2042 and other known issues
 source("R/1_data_processing/6_height_process.R")
+
+# Analyze distance traveled per day to try to detect anomalies
+source("R/1_data_processing/7_dist_process.R")
 
 # Create a database with the new information extracted from the birds
 source("R/1_data_processing/8_create_db_fit_ready.R")

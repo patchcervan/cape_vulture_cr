@@ -128,8 +128,7 @@ for(i in 1:length(trk_files)){
     
     # Subset dates. Remove UTM coordinates to avoid confusion
     trk_sel <- trk_sel %>% 
-        filter(datetime >= date_start, datetime <= date_end) %>%
-        dplyr::select(-c("x", "y"))
+        filter(datetime >= date_start, datetime <= date_end)
     
     
     # Redefine age ------------------------------------------------------------
