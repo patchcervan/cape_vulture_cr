@@ -102,4 +102,4 @@ vults$dist_slp <- out$dist_slp
 
 # Save data ---------------------------------------------------------------
 
-saveRDS(vults, "data_ssf_ready.rds")
+saveRDS(vults, "data_ssf_ready_dist_slp.rds")

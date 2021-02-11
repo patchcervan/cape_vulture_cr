@@ -24,11 +24,11 @@ bird_db <- read_csv("data/working/bird_db_fit_ready.csv")
 colony_db <- read_csv("data/working/colony_db.csv")
 
 # Read in roost and colony data
-colony_orig <- read_csv("data/working/colony_data_join.csv")
+colony_orig <- read_csv("data/working/colony_data_all_upt.csv")
 
 # Extract roosts and fix names
 roost <- colony_orig %>% 
-   filter(str_detect(type, "Roost"))
+   filter(str_detect(type, "roost"))
 
 # Load protected areas
 pa <- st_read("data/working/WDPA_protected_areas/prot_areas_single.shp")
@@ -137,6 +137,9 @@ for(i in 1:length(trk_files)){
    
    use_rdm <- new_trk %>% 
       random_steps(n_control = 5)
+   
+   # At this point I need to save the attributes so that they are not lost later in the process
+   atts <- attributes(use_rdm)
    
    
    # Find distance to colony -------------------------------------------------
@@ -291,7 +294,7 @@ for(i in 1:length(trk_files)){
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
                    covts_path = "data/working/covts_rasters",
-                   covts_names = c("srtm0", "slope", "vrm3"),
+                   covts_names = c("srtm0", "slope", "vrm3", "dist_slp_m"),
                    return_sf = FALSE, extract_method = "merge")
    
    
@@ -346,6 +349,10 @@ for(i in 1:length(trk_files)){
              lat1_ = st_coordinates(.)[,2]) %>% 
       st_drop_geometry()
    
+   # Recover attributes (e.g. step-length and angle distributions)
+   atts$names <- attr(use_rdm, "names")
+   attributes(use_rdm) <- atts
+   
    # Save track
    saveRDS(use_rdm, paste0("data/working/bird_tracks/fit_ready/ssf/", id_sel,".rds"))
    
@@ -388,14 +395,14 @@ model_data %>%
 model_data <- model_data %>%
    mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
 
-# There is only one bird with resolution 3 and one with resolution 8
-rowSums(table(model_data$res, model_data$bird_id) != 0)
-
-# We'll transfer them to resolution 4 and 24 respectively
-model_data <- model_data %>% 
-   mutate(res = case_when(res == 3 ~ 4,
-                          res == 8 ~ 24,
-                          TRUE ~ res))
+# # There is only one bird with resolution 3 and one with resolution 8
+# rowSums(table(model_data$res, model_data$bird_id) != 0)
+# 
+# # We'll transfer them to resolution 4 and 24 respectively
+# model_data <- model_data %>% 
+#    mutate(res = case_when(res == 3 ~ 4,
+#                           res == 8 ~ 24,
+#                           TRUE ~ res))
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
@@ -407,7 +414,7 @@ model_data <- model_data %>%
           zone_fct = zone) %>%
    spread(zone, i, fill = 0) %>%
    mutate(i = 1,
-          res = factor(res, levels = c(1, 2, 4, 24), labels = paste("res", c(1, 2, 4, 24), sep = "_")),
+          res = factor(res, levels = c(1, 2, 3, 4, 8, 24), labels = paste("res", c(1, 2, 3, 4, 8, 24), sep = "_")),
           res_fct = res) %>%
    spread(res, i, fill = 0) %>%
    mutate(i = 1,
