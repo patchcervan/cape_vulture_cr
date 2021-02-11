@@ -13,13 +13,13 @@ library(raster)
 library(tidyverse)
 library(furrr)
 
-future::plan("multicore")
+future::plan("multisession")
 
 rm(list = ls())
 
 # Create a data frame with all raster filepaths. 
 # One variable is the East coordinate, the other is the North coordinate
-rfiles <- expand.grid(39:44, 16:19) %>% 
+rfiles <- expand.grid(39:44, 15:19) %>% 
     rename(east = Var1, north = Var2) %>% 
     mutate(filename = paste0("data/working/covts_rasters/srtm_", east, "_", north,".tif"))
 
