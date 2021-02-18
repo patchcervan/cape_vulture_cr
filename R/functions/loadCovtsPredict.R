@@ -12,6 +12,8 @@ loadCovtsPredict <- function(x, av_area = NULL, buffer = NULL, covt,
       
       # x = target_col; av_area <- NULL; buffer = 1e5; covt = "srtm0"
       
+   require(raster)
+   
       # Make sure x is a spatial object and is in a geographical reference system
       if(!"sf" %in% class(x)) stop("x is not a spatial object")
       if(crs(x, asText = T) != "+proj=longlat +datum=WGS84 +no_defs") warning("CRS seems to be different from lat-lon WGS84")
