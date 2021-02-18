@@ -297,7 +297,14 @@ col_counts %>%
    # What proportion of juveniles with respect to adults
    col_counts %>% 
       filter(!is.na(ad_p), !is.na(juv)) %>% 
-      mutate(juv_prop = juv / (ad + juv)) %>% 
+      mutate(juv_prop = juv / ad) %>% 
+      pull(juv_prop) %>% 
+      hist()
+   
+   # What proportion of juveniles with respect to total
+   col_counts %>% 
+      filter(!is.na(ad_p), !is.na(juv)) %>% 
+      mutate(juv_prop = juv / (juv + ad)) %>% 
       pull(juv_prop) %>% 
       hist()
    
@@ -306,19 +313,20 @@ col_counts %>%
       mutate(juv_prop = juv / (ad + juv)) %>%
       ggplot() +
       geom_point(aes(x = ad_p, y = juv_prop))
+   
    # According to our very basic life-history model, in a steady state,
-   # there should be 53% of adults and 32% juveniles (ages 1 to 4).
-   # Therefore the number of juvs = 0.32/0.53 * ad = 0.66 * ad
-   # However, this seems to be a bit higher than observed. Are juveniles
+   # there should be 70% of adults and 30% juveniles (ages 1 to 4).
+   # Therefore the number of juvs = 0.30/0.70 * ad = 0.43 * ad
+   # This seems to be consistent with the observations, but are juveniles
    # present at the breeding colonies or they are rather at roosts?
    col_counts <- col_counts %>% 
-      mutate(juv_p = ifelse(is.na(juv), round(0.66*ad_p), juv))
+      mutate(juv_p = ifelse(is.na(juv), round(0.43*ad_p), juv))
    
    # In some colonies only total counts are available, we must divide this
    # into adults and juveniles
    col_counts <- col_counts %>% 
-      mutate(ad_p = if_else(is.na(ad_p), round(0.53*total), ad_p),
-             juv_p = if_else(is.na(juv_p), round(0.32*total), juv_p))
+      mutate(ad_p = if_else(is.na(ad_p), round(0.70*total), ad_p),
+             juv_p = if_else(is.na(juv_p), round(0.30*total), juv_p))
    
 # Save
 write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
