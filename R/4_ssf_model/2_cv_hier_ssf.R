@@ -19,7 +19,7 @@ library(furrr)
 # Vulture data
 vults <- readRDS("data/working/data_ssf_ready.rds")
 
-# Remove birds for which age in unknown
+# Remove birds for which age is unknown
 vults <- vults %>%
     filter(age_fct != "unknown")
 
@@ -36,7 +36,15 @@ vults <- vults %>%
 # Change variable names to make them more readable
 vults <- vults %>% 
     rename(elev = srtm0,
-           rugg = vrm3)
+           rugg = vrm3,
+           dist_slp = dist_slp_m)
+
+# Add log of distances since the effect probably saturates
+vults <- vults %>% 
+    mutate(log_dist_col = log(dist_col),
+           log_dist_col_any = log(dist_col_any),
+           log_dist_sfs = log(dist_sfs),
+           log_dist_slp = log(dist_slp))
 
 # Make response variable numeric
 vults <- vults %>% 
@@ -115,10 +123,14 @@ for (i in seq_along(cv_ids)){
 # Define model elements
 mod_elem <- list(
     dist = c("dist_col", "dist_sfs", "dist_col_any"),
+    dist2 = c("log_dist_col", "dist_sfs", "dist_col_any"),
+    log_dist = c("log_dist_col", "log_dist_sfs", "log_dist_col_any"),
     topo1 = c("elev", "slope", "dist_slp", "rugg"),
     topo2 = c("elev", "slope", "rugg"),
     topo3 = c("elev", "dist_slp", "rugg"),
+    topo4 = c("elev", "slope", "log_dist_slp", "rugg"),
     hab = c("closed", "crops", "urban", "water", "prot_area"),
+    hab2 = c("NDVI_mean", "prot_area"),
     mov = c("sl_")
 )
 
@@ -161,17 +173,38 @@ form <- function(data, mod_elem, include, intr = NULL){
 
 # Define models
 int1 <- list(dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions
+int2 <- list(log_dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
+int3 <- list(dist2 ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
+
+# models <- list(
+#     # Compare different slope variables in the full model
+#     mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = int1),
+#     mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = int1),
+#     mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = int1),
+#     mod4 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(topo1 ~ zone_fct(z_1)))),
+#     mod5 = form(vults, mod_elem, c("topo1", "hab", "mov")),
+#     mod6 = form(vults, mod_elem, c("dist", "hab", "mov"), intr = int1),
+#     mod7 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = int1),
+#     mod8 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(dist ~ ttnoon, dist ~ ttnoon_sq))),
+#     mod9 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(mov ~ res))),
+#     mod10 = form(vults, mod_elem, c("log_dist", "topo1", "mov"), intr = c(int1, list(mov ~ res))),
+#     mod11 = form(vults, mod_elem, c("log_dist", "topo1", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
+#     mod12 = form(vults, mod_elem, c("dist", "topo4", "hab", "mov"), intr = int1),
+#     mod13 = form(vults, mod_elem, c("log_dist", "topo2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+#     mod14 = form(vults, mod_elem, c("log_dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1))))
+# )
+
+# Final models to test
 models <- list(
-    # Compare different slope variables in the full model
-    mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = int1),
-    mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = int1),
-    mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = int1),
-    mod4 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(topo1 ~ zone_fct(z_1)))),
-    mod5 = form(vults, mod_elem, c("topo1", "hab", "mov")),
-    mod6 = form(vults, mod_elem, c("dist", "hab", "mov"), intr = int1),
-    mod7 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = int1),
-    mod8 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(dist ~ ttnoon, dist ~ ttnoon_sq))),
-    mod9 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(mov ~ res)))
+    mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
+    mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = c(int1, list(mov ~ res, topo3 ~ zone_fct(z_1)))),
+    mod4 = form(vults, mod_elem, c("dist", "topo4", "hab", "mov"), intr = c(int1, list(mov ~ res, topo4 ~ zone_fct(z_1)))),
+    mod5 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod6 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1), hab2 ~ zone_fct(z_1)))),
+    mod7 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod8 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res))),
+    mod9 = form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1))))
 )
 
 # Set model names
@@ -199,7 +232,7 @@ for(m in seq_along(models)){
 # Explore results ---------------------------------------------------------
 
 # Load from cluster
-files <- list.files("hpc/output/", pattern = "cv_results")
+files <- list.files("hpc/output/", pattern = "cv_results_[1-9]")
 
 cv_results <- data.frame()
 

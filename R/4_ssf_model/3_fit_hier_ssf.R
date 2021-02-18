@@ -4,8 +4,7 @@
 
 rm(list = ls())
 
-library(dplyr)
-library(magrittr)
+library(tidyverse)
 library(glmmTMB)
 
 
@@ -14,9 +13,14 @@ library(glmmTMB)
 # Vulture data
 vults <- readRDS("data/working/data_ssf_ready.rds")
 
-# Remove birds for which age in unknown
+# Remove birds for which age is unknown
 vults <- vults %>%
     filter(age_fct != "unknown")
+
+# Subset individuals?
+# set.seed(93487)
+# vults <- vults %>% 
+#     filter(bird_id %in% unique(vults$bird_id)[sample.int(70, 25)])
 
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%
@@ -26,11 +30,23 @@ vults <- vults %>%
 # Change variable names to make them more readable
 vults <- vults %>% 
     rename(elev = srtm0,
-           rugg = vrm3)
+           rugg = vrm3,
+           dist_slp = dist_slp_m)
+
+# Add log of distances since the effect probably saturates
+vults <- vults %>% 
+    mutate(log_dist_col = log(dist_col),
+           log_dist_col_any = log(dist_col_any),
+           log_dist_sfs = log(dist_sfs),
+           log_dist_slp = log(dist_slp))
 
 # Make response variable numeric
 vults <- vults %>% 
     mutate(case = if_else(case_ == TRUE, 1, 0))
+
+# We also need a numeric resolution variable
+vults <- mutate(vults,
+                res = as.numeric(str_remove(res_fct, "res_")))
 
 # Remove steps for which elevation is NA
 steps_rm <- vults %>% 
@@ -41,37 +57,45 @@ steps_rm <- vults %>%
 vults <- vults %>% 
     filter(!(step_id_ %in% steps_rm))
 
+
 # Specify model -----------------------------------------------------------
 
 # Define model elements
 mod_elem <- list(
-    dist = c("dist_col", "dist_sfs", "dist_col_any"),
-    topo1 = c("elev", "slope", "dist_slp", "rugg"),
+    dist2 = c("log_dist_col", "dist_sfs", "dist_col_any"),
     topo2 = c("elev", "slope", "rugg"),
-    topo3 = c("elev", "dist_slp", "rugg"),
-    hab = c("closed", "crops", "urban", "water", "prot_area")
+    hab = c("closed", "crops", "urban", "water", "prot_area"),
+    mov = c("sl_")
 )
 
-# Helper function to formulate model from elements
-form <- function(mod_elem, include, age = NULL, zone = NULL){
+# Helper function to formulate models from elements
+form <- function(data, mod_elem, include, intr = NULL){
     
     # Extract variables
     elem <- unlist(mod_elem[include])
     
-    # Define movement kernel variables
-    mov <- c("sl_", "sl_:(ttnoon + ttnoon_sq)")
-    
     # Define interactions
     fixed <- elem # In case there are no interactions
     
-    if(!is.null(age)){
-        inter_age <- paste(rep(unlist(mod_elem[age]), each = 2), c("subad", "juv"), sep = ":")
-        fixed <- c(fixed, inter_age)
-    }
-    
-    if(!is.null(zone)){
-        inter_zone <- paste(rep(unlist(mod_elem[zone]), each = 3), c("z_2", "z_3", "z_4"), sep = ":")
-        fixed <- c(fixed, inter_zone)
+    # Define interactions
+    if(!is.null(intr)){
+        for(i in seq_along(intr)){
+            v1 <- mod_elem[[as.character(intr[[i]][[2]])]]
+            v2 <- as.character(intr[[i]][[3]])[1]
+            if(!(v2 %in% names(data))) stop("variable not in data frame")
+            ref <- as.character(intr[[i]][[3]])[2]
+            
+            if(!is.na(ref)){
+                lv <- unique(vults[[v2]])
+                lv <- lv[lv != ref]
+                
+                out <- paste(rep(v1, each = length(lv)), lv , sep = ":")
+            } else{
+                out <- paste(v1, v2, sep = ":")
+            }
+            
+            fixed <- c(fixed, out)
+        }
     }
     
     # Define random effects
@@ -81,8 +105,12 @@ form <- function(mod_elem, include, age = NULL, zone = NULL){
     reformulate(c(-1, fixed, rdm), "case")
 }
 
-# Specify model
-model <- form(mod_elem, c("dist", "topo1", "hab", "mov"), age = "dist")
+# Define models
+int3 <- list(dist2 ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
+
+
+# Final models to test
+model <- form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1))))
 
 
 # Standardize covariates --------------------------------------------------
@@ -117,6 +145,7 @@ ini_val <- list(beta = ssf_model$parameters$beta,
 ini_val <- lapply(ini_val, unname)
 
 # Fit
+rm(ssf_model) # To free memory
 ssf_fit_rm <- glmmTMB(model, family = poisson, data = vults,
                       map = list(theta = factor(c(seq(1, nrm-1, 1), NA))),
                       start = ini_val
