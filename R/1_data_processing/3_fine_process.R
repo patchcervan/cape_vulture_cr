@@ -42,6 +42,7 @@ write_csv(bird_db, "data/working/bird_db.csv")
 
 # PROCESS BIRDS -----------------------------------------------------------
 
+
 # Load a bird -----------------------------------------------------------
 
 for(i in 1:length(trk_files)){
@@ -52,6 +53,14 @@ for(i in 1:length(trk_files)){
     
     # bird ID
     id_sel <- unique(trk_sel$bird_id)
+    
+    print(id_sel)
+    
+    # Check previous processing steps and process only birds that have not yet been processed
+    if(length(attr(trk_sel, "fine")) != 0){
+        print("Already processed?")
+        next
+    }
     
     # Database entry
     db_sel <- bird_db %>% 

@@ -12,7 +12,7 @@ library(mixtools)
 library(lubridate)
 library(furrr)
 
-future::plan("multisession") # change if multiple cores and excess RAM are available
+future::plan("multisession", workers = 3) # change if multiple cores and excess RAM are available
 
 
 # Read in data ------------------------------------------------------------
@@ -30,6 +30,12 @@ trks <- map(trkfiles, ~readRDS(paste0("data/working/bird_tracks/in_process/", .x
 
 # Keep only tracks with colony info
 trks <- trks[!map_lgl(trks, ~length(attr(.x, "colony")) == 0)]
+
+# And no previous movement info
+trks <- trks[map_lgl(trks, ~length(attr(.x, "move")) == 0)]
+
+# Remove ma07, because it has no speed information
+trks <- trks[map_chr(trks, ~unique(.x$bird_id)) != "ma07"]
 
 # Load function to fit batch of mixtures
 source("R/functions/fitMixBatch.R")

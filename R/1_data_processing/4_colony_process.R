@@ -55,6 +55,12 @@ for(i in 1:length(trkfiles)){
          next
       }
       
+      # Some birds might have gone through the current processing step. Skip
+      if(length(attr(trk, "colony")) != 0){
+         print("Already processed?")
+         next
+      }
+      
       # Find projection for data
       tmerproj <- makeTmerProj(st_as_sf(trk, coords = c("lon", "lat"), crs = 4326, remove = F))
       

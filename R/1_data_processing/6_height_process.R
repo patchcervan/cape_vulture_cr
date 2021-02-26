@@ -34,6 +34,12 @@ for(i in 1:length(trk_files)){
       next
    }
    
+   # Some birds might have gone through the current processing step. Skip
+   if(length(attr(trk, "height")) != 0){
+      print("Already processed?")
+      next
+   }
+   
    # Plot altitude data
    trk %>% 
       ggplot(aes(x = datetime, y = alt)) +
