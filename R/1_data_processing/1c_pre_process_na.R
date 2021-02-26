@@ -76,13 +76,14 @@ for(i in 1:9){
     unique(new_trk$tag_id)
     dat_summary
     
-    # Fix age and sex
-    age <- if_else(bird_id %in% paste0("na0", c(1,2,3,4,5)), "ad",
+    # Fix age and sex (7, 8 and 9 were bred in captivity, see colony update report by John Mendelsohn)
+    age <- if_else(bird_id %in% paste0("na0", c(1,2,3,4,5,7,8,9)), "ad",
                    if_else(bird_id %in% paste0("na0", 6), "juv",
                            "unknown"))
     
-    sex <- if_else(bird_id %in% paste0("na0", 1:5), "male",
-                   "unknown")
+    sex <- case_when(bird_id %in% paste0("na0", c(1:5,8)) ~ "male",
+                     bird_id %in% paste0("na0", 6:7) ~ "female",
+                     TRUE ~ "unknown")
     
     
     new_db <- dat_summary %>% 
