@@ -85,6 +85,7 @@ for(i in 1:length(trk_files)){
    
    trk_tol <- case_when(id_sel == "ez02" ~ 120,
                         TRUE ~ 40)
+   trk_tol <- 120
    
    # Make amt object
    trk_xyt <- trk_sel %>% 
@@ -96,31 +97,21 @@ for(i in 1:length(trk_files)){
    
    unique(year(new_trk$t_))
    
-   # # Remove repeated observations if there were
-   # if(nrow(distinct(new_trk, x_, y_)) != nrow(new_trk)){
-   #    warning(paste("Removing repeated observations! In", unique(new_trk$bird_id)))
-   #    new_trk <- distinc(new_trk, x_, y_, .keep_all = TRUE)
-   # }
-   
-   # Nest by year and produce random points for each year
-   use_rdm <- new_trk %>% 
-      # as.data.frame() %>% 
-      mutate(year = year(t_)) %>% 
-      nest(data = -c(bird_id, year)) %>%  
-      mutate(rp = map(.$data, ~random_points(.x)))
-   
-
-   
-   # Add random points to the main data frame
-   use_rdm <- use_rdm %>% 
-      mutate(data = map2(use_rdm$data, use_rdm$rp, ~left_join(.y, .x, by = c("x_", "y_")))) %>% 
-      dplyr::select(-rp)
-   
    # Define projected coordinate system
    tmerproj <- makeTmerProj(st_as_sf(new_trk, coords = c("x_", "y_"), crs = 4326))
    
+   # Produce random steps
+   use_rdm <- new_trk %>% 
+      steps(keep_cols = 'end') %>% 
+      random_steps(n_control = 10)
+
    # At this point I need to save the attributes so that they are not lost later in the process
-   atts <- attributes(new_trk)
+   atts <- attributes(use_rdm)
+   
+   # Nest by year
+   use_rdm <- use_rdm %>% 
+      mutate(year = year(t1_)) %>% 
+      nest(data = -c(bird_id, year))
    
    
    # Find distance to colony -------------------------------------------------
@@ -144,7 +135,7 @@ for(i in 1:length(trk_files)){
    
    # for each year's colony find distance to tracking locations
    use_rdm <- use_rdm %>% 
-      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x_", "y_"), crs = tmerproj, remove = F))) 
+      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x2_", "y2_"), crs = tmerproj, remove = F))) 
    
    use_rdm <- use_rdm %>%
       mutate(dist_col = future_map2(.$data, colony$data, ~as.numeric(st_distance(.x, .y))))
@@ -200,22 +191,10 @@ for(i in 1:length(trk_files)){
    
    # Unnest data
    use_rdm <- unnest(use_rdm, cols = names(use_rdm))
-   
-   # For whatever reason unnest is not producing a dataframe. Fix
-   reassemble <- function(l){
-      out <- as.tibble(l[[1]])
-      for(i in 2:length(l)){
-         out <- cbind(out,l[[i]])
-      }
-      names(out) <- names(l)
-      return(out)
-   }
-   
-   use_rdm <- reassemble(use_rdm)
 
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = F)
+      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = F)
    
    # Nest and extract land use class for the different years
    use_rdm <- use_rdm  %>%
@@ -236,7 +215,7 @@ for(i in 1:length(trk_files)){
    
    # Nest and extract NDVI for the different years
    use_rdm <- use_rdm  %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>% 
       nest(data = -year) %>% 
       mutate(data = future_map2(.$data, .$year, ~ extractCovts(.x,
                                                                loadCovtsPath = "R/functions/loadCovtsRasters.R",
@@ -256,7 +235,7 @@ for(i in 1:length(trk_files)){
    
    # Extract topographical covariates
    use_rdm <- use_rdm %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
                    covts_path = "data/working/covts_rasters",
@@ -268,7 +247,7 @@ for(i in 1:length(trk_files)){
    
    # Calculate intersection between locations and protected areas
    pa_int <- use_rdm %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>%
+      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>%
       st_intersects(pa, sparse = FALSE)
    
    # Create a protected areas covariate
@@ -279,11 +258,11 @@ for(i in 1:length(trk_files)){
    rm(pa_int)
    
    
-   # Add bird to data frame --------------------------------------------------
+   # Save bird --------------------------------------------------
    
-   # # Recover attributes (e.g. step-length and angle distributions)
-   # atts$names <- attr(use_rdm, "names")
-   # attributes(use_rdm) <- atts
+   # Recover attributes (e.g. step-length and angle distributions)
+   atts$names <- attr(use_rdm, "names")
+   attributes(use_rdm) <- atts
    
    # Save track
    saveRDS(use_rdm, paste0("data/working/bird_tracks/fit_ready/ssf/test_", id_sel,".rds"))
@@ -316,23 +295,6 @@ hab_meta <- read_csv("data/working/copernicus_codes.csv")
 model_data <- model_data %>%
    left_join(dplyr::select(hab_meta, "Map code", "class_code"), by = c("land_use" = "Map code")) %>%
    rename(land_cov = class_code)
-
-# Need to correct age for random points
-age_df <- model_data %>% 
-   filter(case_ == TRUE) %>% 
-   group_by(bird_id, year) %>% 
-   summarize(age = unique(age))
-
-age_false <- left_join(filter(model_data, case_ == FALSE),
-                       age_df, by = c("bird_id", "year"))
-
-age_false <- age_false %>% 
-   mutate(age.x = age.y) %>% 
-   rename(age = age.x) %>% 
-   dplyr::select(-age.y)
-
-model_data <- rbind(age_false,
-                    filter(model_data, case_ == TRUE))
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
