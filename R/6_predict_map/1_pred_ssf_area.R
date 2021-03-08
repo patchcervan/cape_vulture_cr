@@ -86,7 +86,7 @@ col_to_pred <- colony_all %>%
 
 # Select age --------------------------------------------------------------
 
-age <- "ad"
+age <- "juv"
 
 
 # Find map codes ----------------------------------------------------------
@@ -120,78 +120,3 @@ for(i in seq_along(map_codes)){
       
    }
 }
-
-
-
-# I think the rest of the code is already implemented in the following scripts
-
-# # SUM RASTERS AND SCALE BY COLONY SIZE ------------------------------------
-# 
-# # Load the name of all raster files
-# rasterdir <- "output/pred_rasters/"
-# rfiles <- list.files(paste0(rasterdir, "1_pred_map_col/"), pattern = ".tif$")
-# 
-# # Extract raster of the desired age
-# age <- "ad"
-# rfiles <- rfiles[str_detect(rfiles, age)]
-# 
-# # Isolate unique raster codes
-# r_ids <-  rfiles %>%
-#       str_sub(8, -14) %>%
-#       unique()
-# 
-# # For all raster codes (locations)
-# for(i in seq_along(r_ids)){
-# 
-#    print(i)
-# 
-#    # Identify all rasters at one location
-#    r_id_files <- rfiles[str_detect(rfiles, r_ids[i])]
-# 
-#    # Select first colony
-#    col_sel <- col_to_pred$id[1]
-# 
-#    # Load raster for the location and first colony
-#    rr <- raster(paste0(rasterdir, "1_pred_map_col/", r_id_files[str_detect(r_id_files, col_sel)]))
-# 
-#    # Scale by number of birds
-#    count <- paste0("avg_", age)
-#    rr <- rr * col_to_pred[[1,count]]
-# 
-#    # Load the rasters of the remaining colonies, scale by number of birds and sum up
-#    for(j in 2:nrow(col_to_pred)){
-#       col_sel <- col_to_pred$id[j]
-#       temp <- raster(paste0(rasterdir, "1_pred_map_col/", r_id_files[str_detect(r_id_files, col_sel)]))
-#       rr <- rr + (temp * col_to_pred[[j, count]])
-#    }
-# 
-#    exportname <- paste0(rasterdir, "2_pred_map_scaled/scl_", r_ids[i], "_", age, ".tif")
-# 
-#    writeRaster(rr, exportname, overwrite = T)
-# }
-# 
-# 
-# 
-# # CROP TO PREDICTION AREA -------------------------------------------------
-# 
-# # Load the name of all raster files
-# rasterdir <- "output/pred_rasters/"
-# rfiles <- list.files(paste0(rasterdir, "2_pred_map_scaled/"), pattern = ".tif$")
-# 
-# # Extract raster of the desired age
-# age <- "ad"
-# rfiles <- rfiles[str_detect(rfiles, age)]
-# 
-# # Load each raster file and crop to prediction area
-# for(i in seq_along(rfiles)){
-#    
-#    r <- raster(paste0(rasterdir, "2_pred_map_scaled/", rfiles[i]))
-#    
-#    if(!is.null(intersect(extent(r), extent(pred_area)))){
-#       r <- crop(r, pred_area)
-#    } else {
-#       next
-#    }
-#    
-#    writeRaster(r, paste0(rasterdir, "2_pred_map_scaled/eastern_cape/", rfiles[i]), overwrite = T)
-# }
