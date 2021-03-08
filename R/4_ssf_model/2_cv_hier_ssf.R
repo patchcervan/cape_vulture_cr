@@ -19,15 +19,6 @@ library(furrr)
 # Vulture data
 vults <- readRDS("data/working/data_ssf_ready.rds")
 
-# Remove birds for which age is unknown
-vults <- vults %>%
-    filter(age_fct != "unknown")
-
-# Subset individuals?
-# set.seed(93487)
-# vults <- vults %>% 
-#     filter(bird_id %in% unique(vults$bird_id)[sample.int(70, 25)])
-
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%
     mutate(id = row_number(),
@@ -53,15 +44,6 @@ vults <- vults %>%
 # We also need a numeric resolution variable
 vults <- mutate(vults,
                 res = as.numeric(str_remove(res_fct, "res_")))
-
-# Remove steps for which elevation is NA
-steps_rm <- vults %>% 
-    filter(is.na(elev)) %>% 
-    summarize(steps = unique(step_id_)) %>% 
-    pull(steps)
-
-vults <- vults %>% 
-    filter(!(step_id_ %in% steps_rm))
 
 
 # Prepare train and validation --------------------------------------------
@@ -176,24 +158,6 @@ int1 <- list(dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interact
 int2 <- list(log_dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
 int3 <- list(dist2 ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
 
-# models <- list(
-#     # Compare different slope variables in the full model
-#     mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = int1),
-#     mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = int1),
-#     mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = int1),
-#     mod4 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(topo1 ~ zone_fct(z_1)))),
-#     mod5 = form(vults, mod_elem, c("topo1", "hab", "mov")),
-#     mod6 = form(vults, mod_elem, c("dist", "hab", "mov"), intr = int1),
-#     mod7 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = int1),
-#     mod8 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(dist ~ ttnoon, dist ~ ttnoon_sq))),
-#     mod9 = form(vults, mod_elem, c("dist", "topo1", "mov"), intr = c(int1, list(mov ~ res))),
-#     mod10 = form(vults, mod_elem, c("log_dist", "topo1", "mov"), intr = c(int1, list(mov ~ res))),
-#     mod11 = form(vults, mod_elem, c("log_dist", "topo1", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
-#     mod12 = form(vults, mod_elem, c("dist", "topo4", "hab", "mov"), intr = int1),
-#     mod13 = form(vults, mod_elem, c("log_dist", "topo2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
-#     mod14 = form(vults, mod_elem, c("log_dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1))))
-# )
-
 # Final models to test
 models <- list(
     mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
@@ -204,7 +168,9 @@ models <- list(
     mod6 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1), hab2 ~ zone_fct(z_1)))),
     mod7 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
     mod8 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res))),
-    mod9 = form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1))))
+    mod9 = form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod10 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(dist ~ res, topo2 ~ res, hab ~res,
+                                                                                        mov ~ res, topo2 ~ zone_fct(z_1))))
 )
 
 # Set model names
@@ -215,12 +181,18 @@ for (i in seq_along(models)){
 
 # FIT MODELS --------------------------------------------------------------
 
+# At this point we can get rid of most of the working environment to free up memory
+rm(list = ls()[!ls() %in% c("cv_ids", "models")])
+gc()
+
 # Load function to fit and predict
 source("R/functions/fitCVssf.R")
 
 for(m in seq_along(models)){
     
-    cv_results <- future_map(cv_ids, ~fitCVssf(data = vults, test_ids = .x, model = models[[m]]))
+    cv_results <- future_map(cv_ids, ~fitCVssf(train_data = "data/working/data_ssf_ready.rds",
+                                               test_data = "data/working/data_ssf_test.rds",
+                                               test_ids = .x, model = models[[m]]))
     
     cv_results <- do.call("rbind", cv_results)
     
@@ -231,15 +203,20 @@ for(m in seq_along(models)){
 
 # Explore results ---------------------------------------------------------
 
+resultsdir <- "hpc/output/cv_results_old/"
+
 # Load from cluster
-files <- list.files("hpc/output/", pattern = "cv_results_[1-9]")
+files <- list.files(resultsdir, pattern = "cv_results_[1-9].rds")
 
 cv_results <- data.frame()
 
 for(i in seq_along(files)){
     cv_results <- rbind(cv_results,
-                        readRDS(paste0("hpc/output/", files[i])))
+                        readRDS(paste0(resultsdir, files[i])))
 }
+
+cv_results <- rbind(cv_results,
+                    readRDS(paste0(resultsdir, "cv_results_10.rds")))
 
 print(cv_results, n = Inf)
 
@@ -255,6 +232,7 @@ cv_results %>%
 # objects
 
 cv_results %>% 
+    filter(!is.na(AIC)) %>% 
     dplyr::select(-formula) %>% 
     gather(metric, value, -c("mod", "test")) %>% 
     ggplot() +
@@ -268,25 +246,13 @@ cv_results %>%
 summary(lm(cv_sel_coef ~ mod, data = cv_results))
 
 
-# Load from cluster
-cv_results <- rbind(readRDS("hpc/output/cv_results1.rds"),
-                    readRDS("hpc/output/cv_results2.rds"),
-                    readRDS("hpc/output/cv_results3.rds"))
+# Explore single fit ------------------------------------------------------
 
-cv_results %>% 
-    gather(metric, value, -c("model", "test")) %>% 
-    ggplot() +
-    geom_boxplot(aes(x = model, y = value)) +
-    geom_jitter(aes(x = model, y = value), col = "red", alpha = 0.5, width = 0.1) +
-    facet_wrap("metric", scales = "free")
-# Warning messages are fine it is that the columns inherited attributes from previous
-# objects
+# Read in cv results
+cv_results <- readRDS("hpc/output/cv_results_mod_2_test_1.rds")
+cv_results
 
-cv_results %>% 
-    gather(metric, value, -c("model", "test")) %>% 
-    ggplot() +
-    geom_point(aes(x = model, y = value, col = test), alpha = 0.5) +
-    geom_line(aes(x = model, y = value, col = test, group = test), alpha = 0.5) +
-    facet_wrap("metric", scales = "free")
-# Warning messages are fine it is that the columns inherited attributes from previous
-# objects
+# Load fit
+ssf_fit <- readRDS("hpc/output/ssf_fit_test1_mod2.rds")
+
+summary(ssf_fit)
