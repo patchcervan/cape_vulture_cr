@@ -39,6 +39,10 @@ toMeterSmall <- function(fl){
       # Transform to meters
       r <- r * 111000
       
+      # A few distances to slopes might get negative values because of interpolation
+      # Set all distances smaller than 0 to the minimum distance greater than zero
+      r[r < 0] <- min(r[r>0])
+      
       # Save rasters
       writeRaster(r, filename = paste0("data/working/covts_rasters/",
                                        str_replace(fl, "dist_slp", "dist_slp_m")), overwrite = T)
