@@ -343,11 +343,16 @@ for(i in 1:length(trk_files)){
    
    # Recover latitude -longitude coordinates
    use_rdm <- use_rdm %>% 
-      st_as_sf(coords = c("x1_", "y1_"), crs = tmerproj, remove = F) %>% 
-      st_transform(crs = 4326) %>% 
-      mutate(lon1_ = st_coordinates(.)[,1],
-             lat1_ = st_coordinates(.)[,2]) %>% 
-      st_drop_geometry()
+         st_as_sf(coords = c("x1_", "y1_"), crs = tmerproj, remove = F) %>% 
+         st_transform(crs = 4326) %>% 
+         mutate(lon1_ = st_coordinates(.)[,1],
+                lat1_ = st_coordinates(.)[,2]) %>% 
+         st_drop_geometry() %>% 
+         st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = F) %>% 
+         st_transform(crs = 4326) %>% 
+         mutate(lon2_ = st_coordinates(.)[,1],
+                lat2_ = st_coordinates(.)[,2]) %>% 
+         st_drop_geometry()
    
    # Recover attributes (e.g. step-length and angle distributions)
    atts$names <- attr(use_rdm, "names")
@@ -367,6 +372,9 @@ rm(list = ls())
 model_data <- data.frame()
 
 trkfiles <- list.files("data/working/bird_tracks/fit_ready/ssf")
+
+# Keep only those files that will be used for training models not for testing
+trkfiles <- trkfiles[!str_starts(trkfiles, "test")]
 
 for(i in 1:length(trkfiles)){
    trk <- readRDS(paste0("data/working/bird_tracks/fit_ready/ssf/", trkfiles[i]))
