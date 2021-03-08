@@ -13,15 +13,6 @@ library(glmmTMB)
 # Vulture data
 vults <- readRDS("data/working/data_ssf_ready.rds")
 
-# Remove birds for which age is unknown
-vults <- vults %>%
-    filter(age_fct != "unknown")
-
-# Subset individuals?
-# set.seed(93487)
-# vults <- vults %>% 
-#     filter(bird_id %in% unique(vults$bird_id)[sample.int(70, 25)])
-
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%
     mutate(id = row_number(),
@@ -48,23 +39,20 @@ vults <- vults %>%
 vults <- mutate(vults,
                 res = as.numeric(str_remove(res_fct, "res_")))
 
-# Remove steps for which elevation is NA
-steps_rm <- vults %>% 
-    filter(is.na(elev)) %>% 
-    summarize(steps = unique(step_id_)) %>% 
-    pull(steps)
 
-vults <- vults %>% 
-    filter(!(step_id_ %in% steps_rm))
-
-
-# Specify model -----------------------------------------------------------
+# Define models to compare ------------------------------------------------
 
 # Define model elements
 mod_elem <- list(
+    dist = c("dist_col", "dist_sfs", "dist_col_any"),
     dist2 = c("log_dist_col", "dist_sfs", "dist_col_any"),
+    log_dist = c("log_dist_col", "log_dist_sfs", "log_dist_col_any"),
+    topo1 = c("elev", "slope", "dist_slp", "rugg"),
     topo2 = c("elev", "slope", "rugg"),
+    topo3 = c("elev", "dist_slp", "rugg"),
+    topo4 = c("elev", "slope", "log_dist_slp", "rugg"),
     hab = c("closed", "crops", "urban", "water", "prot_area"),
+    hab2 = c("NDVI_mean", "prot_area"),
     mov = c("sl_")
 )
 
@@ -106,12 +94,31 @@ form <- function(data, mod_elem, include, intr = NULL){
 }
 
 # Define models
+int1 <- list(dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions
+int2 <- list(log_dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
 int3 <- list(dist2 ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
 
-
 # Final models to test
-model <- form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1))))
+models <- list(
+    mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
+    mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = c(int1, list(mov ~ res, topo3 ~ zone_fct(z_1)))),
+    mod4 = form(vults, mod_elem, c("dist", "topo4", "hab", "mov"), intr = c(int1, list(mov ~ res, topo4 ~ zone_fct(z_1)))),
+    mod5 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod6 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1), hab2 ~ zone_fct(z_1)))),
+    mod7 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod8 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res))),
+    mod9 = form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
+    mod10 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(dist ~ res, topo2 ~ res, hab ~res,
+                                                                                        mov ~ res, topo2 ~ zone_fct(z_1))))
+)
 
+# Set model names
+for (i in seq_along(models)){
+    attr(models[[i]], "model") <- paste0("mod", i)
+}
+
+model <- models$mod7
 
 # Standardize covariates --------------------------------------------------
 
@@ -140,6 +147,9 @@ str_theta[nrm] <- log(1e3)
 # Define starting values
 ini_val <- list(beta = ssf_model$parameters$beta,
                 theta = str_theta)
+
+# # From previous fit?
+# ini_val$beta[c(1,2,3,13:18)] <- c(-2,-1,0, 2,2, 2,2, -2,-2)
 
 # remove names just in case
 ini_val <- lapply(ini_val, unname)
