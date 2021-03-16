@@ -73,6 +73,16 @@ for(i in 1:length(trk_files)){
       next
    }
    
+   # Certain birds were excluded
+   if(id_sel %in% c("ct08", "ct09")){
+      print("This bird was excluded")
+      next
+   }
+   
+   # We removed the sub-adult age therefore they should become juveniles
+   trk_sel <- trk_sel %>% 
+      mutate(age = if_else(age == "subad", "juv", age))
+   
    # Define tracking resolution (sampling rate) and tolerance in hours and minutes respectively
    trk_res <- case_when(id_sel == "ez02" ~ 24,
                         id_sel == "ez05" ~ 8,
@@ -177,43 +187,21 @@ for(i in 1:length(trk_files)){
    colony_orig <- st_as_sf(colony_orig, coords = c("lon", "lat"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj)
    
-   # Then, we need to remove any colony or roost that is less than 10km away from the central colony
+   # Then, we need to remove any colony or roost that is less than 5km away from the central colony
    col_sel <- future_map(colony$data, ~st_distance(.x, colony_orig)) %>% 
       # add distance from central colony (for each year)
       future_map(~mutate(colony_orig,
                          dist_from_central = .x[1,])) %>% 
       # remove those that are closer than 10km
-      future_map( ~filter(.x, as.numeric(dist_from_central) > 1e4))
+      future_map( ~filter(.x, as.numeric(dist_from_central) > 5e3))
    
    # For each year calculate distance between locations and any colony or roost
-   # considering only those selected roosts and colonies that are further than 10km
+   # considering only those selected roosts and colonies that are further than 5km
    # from central colony
    use_rdm <- use_rdm %>% 
       mutate(dist_col_any = future_map2(.$data, col_sel,
                                         ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                      st_coordinates(.y))))
-   
-   # Find distance to roosts -------------------------------------------------
-   
-   # To create a matrix of coordinates from the roost layer, we need to create a spatial object
-   roost <- st_as_sf(roost, coords = c("lon", "lat"), crs = 4326, remove = F) %>% 
-      st_transform(tmerproj)
-   
-   # Then, we need to remove any roost that is less than 10km away from the central colony
-   roost_sel <- future_map(colony$data, ~st_distance(.x, roost)) %>% 
-      # add distance from central colony (for each year)
-      future_map(~mutate(roost,
-                         dist_from_central = .x[1,])) %>% 
-      # remove those that are closer than 10km
-      future_map( ~filter(.x, as.numeric(dist_from_central) > 1e4))
-   
-   # For each year calculate distance between locations and any roost
-   # considering only those selected roosts that are further than 10km
-   # from central colony
-   use_rdm <- use_rdm %>% 
-      mutate(dist_roost = future_map2(.$data, roost_sel,
-                                      ~minDist_cpp(st_coordinates(st_as_sf(.)),
-                                                   st_coordinates(.y))))
    
    
    # Find distance to restaurants --------------------------------------------
@@ -222,19 +210,9 @@ for(i in 1:length(trk_files)){
    sfs <- st_as_sf(sfs, coords = c("longitude", "latitude"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj)
    
-   # Then, we need to remove any sfs that is less than 10km away from the central colony
-   sfs_sel <- future_map(colony$data, ~st_distance(.x, sfs)) %>% 
-      # add distance from central colony (for each year)
-      future_map(~mutate(sfs,
-                         dist_from_central = .x[1,])) %>% 
-      # remove those that are closer than 10km
-      future_map( ~filter(.x, as.numeric(dist_from_central) > 1e4))
-   
    # For each year calculate distance between locations and any sfs
-   # considering only those selected sfs that are further than 10km
-   # from central colony
    use_rdm <- use_rdm %>% 
-      mutate(dist_sfs = future_map2(.$data, sfs_sel,
+      mutate(dist_sfs = future_map2(.$data, sfs,
                                     ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                  st_coordinates(.y))))
    
@@ -426,7 +404,7 @@ model_data <- model_data %>%
           res_fct = res) %>%
    spread(res, i, fill = 0) %>%
    mutate(i = 1,
-          age = factor(age, levels = c("juv", "subad", "ad")),
+          age = factor(age, levels = c("juv", "ad")),
           age_fct = age) %>%
    spread(age, i, fill = 0)
 
