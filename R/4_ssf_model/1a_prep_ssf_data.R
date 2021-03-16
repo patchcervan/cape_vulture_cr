@@ -192,7 +192,7 @@ for(i in 1:length(trk_files)){
       # add distance from central colony (for each year)
       future_map(~mutate(colony_orig,
                          dist_from_central = .x[1,])) %>% 
-      # remove those that are closer than 10km
+      # remove those that are closer than 5km
       future_map( ~filter(.x, as.numeric(dist_from_central) > 5e3))
    
    # For each year calculate distance between locations and any colony or roost
@@ -206,21 +206,19 @@ for(i in 1:length(trk_files)){
    
    # Find distance to restaurants --------------------------------------------
    
+   # Unnest data
+   use_rdm <- unnest(use_rdm, cols = c(-year))
+   
    # To create a matrix of coordinates from the sfs layer, we need to create a spatial object
    sfs <- st_as_sf(sfs, coords = c("longitude", "latitude"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj)
    
    # For each year calculate distance between locations and any sfs
    use_rdm <- use_rdm %>% 
-      mutate(dist_sfs = future_map2(.$data, sfs,
-                                    ~minDist_cpp(st_coordinates(st_as_sf(.)),
-                                                 st_coordinates(.y))))
+      mutate(dist_sfs = minDist_cpp(st_coordinates(st_as_sf(.)), st_coordinates(sfs)))
    
    
    # Extract covariates from rasters -----------------------------------------
-   
-   # Unnest data
-   use_rdm <- unnest(use_rdm, cols = c(-year))
    
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 

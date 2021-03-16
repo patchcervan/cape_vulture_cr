@@ -74,6 +74,16 @@ for(i in 1:length(trk_files)){
       next
    }
    
+   # Certain birds were excluded
+   if(id_sel %in% c("ct08", "ct09")){
+      print("This bird was excluded")
+      next
+   }
+   
+   # We removed the sub-adult age therefore they should become juveniles
+   trk_sel <- trk_sel %>% 
+      mutate(age = if_else(age == "subad", "juv", age))
+   
    # Define the variables that we will use
    trk_sel <- trk_sel %>% 
       dplyr::select(1:19)
@@ -153,7 +163,7 @@ for(i in 1:length(trk_files)){
       future_map(~mutate(colony_orig,
                          dist_from_central = .x[1,])) %>% 
       # remove those that are closer than 10km
-      future_map( ~filter(.x, as.numeric(dist_from_central) > 1e4))
+      future_map( ~filter(.x, as.numeric(dist_from_central) > 5e3))
    
    # For each year calculate distance between locations and any colony or roost
    # considering only those selected roosts and colonies that are further than 10km
@@ -166,31 +176,19 @@ for(i in 1:length(trk_files)){
 
    # Find distance to restaurants --------------------------------------------
    
+   # Unnest data
+   use_rdm <- unnest(use_rdm, cols = c(-year))
+   
    # To create a matrix of coordinates from the sfs layer, we need to create a spatial object
    sfs <- st_as_sf(sfs, coords = c("longitude", "latitude"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj)
    
-   # Then, we need to remove any sfs that is less than 10km away from the central colony
-   sfs_sel <- future_map(colony$data, ~st_distance(.x, sfs)) %>% 
-      # add distance from central colony (for each year)
-      future_map(~mutate(sfs,
-                         dist_from_central = .x[1,])) %>% 
-      # remove those that are closer than 10km
-      future_map( ~filter(.x, as.numeric(dist_from_central) > 1e4))
-   
    # For each year calculate distance between locations and any sfs
-   # considering only those selected sfs that are further than 10km
-   # from central colony
    use_rdm <- use_rdm %>% 
-      mutate(dist_sfs = future_map2(.$data, sfs_sel,
-                                    ~minDist_cpp(st_coordinates(st_as_sf(.)),
-                                                 st_coordinates(.y))))
+      mutate(dist_sfs = minDist_cpp(st_coordinates(st_as_sf(.)), st_coordinates(sfs)))
    
    
    # Extract covariates from rasters -----------------------------------------
-   
-   # Unnest data
-   use_rdm <- unnest(use_rdm, cols = names(use_rdm))
 
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 
@@ -307,7 +305,7 @@ model_data <- model_data %>%
           zone_fct = zone) %>%
    spread(zone, i, fill = 0) %>%
    mutate(i = 1,
-          age = factor(age, levels = c("juv", "subad", "ad")),
+          age = factor(age, levels = c("juv", "ad")),
           age_fct = age) %>%
    spread(age, i, fill = 0)
 
