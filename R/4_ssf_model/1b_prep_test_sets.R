@@ -145,7 +145,8 @@ for(i in 1:length(trk_files)){
    
    # for each year's colony find distance to tracking locations
    use_rdm <- use_rdm %>% 
-      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x2_", "y2_"), crs = tmerproj, remove = F))) 
+      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x2_", "y2_"), crs = 4326, remove = F) %>% 
+                           st_transform(crs = tmerproj))) 
    
    use_rdm <- use_rdm %>%
       mutate(dist_col = future_map2(.$data, colony$data, ~as.numeric(st_distance(.x, .y))))
@@ -157,7 +158,7 @@ for(i in 1:length(trk_files)){
    colony_orig <- st_as_sf(colony_orig, coords = c("lon", "lat"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj)
    
-   # Then, we need to remove any colony or roost that is less than 10km away from the central colony
+   # Then, we need to remove any colony or roost that is less than 5km away from the central colony
    col_sel <- future_map(colony$data, ~st_distance(.x, colony_orig)) %>% 
       # add distance from central colony (for each year)
       future_map(~mutate(colony_orig,
@@ -170,7 +171,7 @@ for(i in 1:length(trk_files)){
    # from central colony
    use_rdm <- use_rdm %>% 
       mutate(dist_col_any = future_map2(.$data, col_sel,
-                                        ~minDist_cpp(st_coordinates(st_as_sf(.)),
+                                        ~minDist_cpp(st_coordinates(.x),
                                                      st_coordinates(.y))))
    
 
@@ -185,13 +186,16 @@ for(i in 1:length(trk_files)){
    
    # For each year calculate distance between locations and any sfs
    use_rdm <- use_rdm %>% 
-      mutate(dist_sfs = minDist_cpp(st_coordinates(st_as_sf(.)), st_coordinates(sfs)))
+      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = F) %>% 
+      st_transform(tmerproj) %>% 
+      mutate(dist_sfs = minDist_cpp(st_coordinates(.), st_coordinates(sfs)))
    
    
    # Extract covariates from rasters -----------------------------------------
 
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 
+      st_drop_geometry() %>% 
       st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = F)
    
    # Nest and extract land use class for the different years
@@ -236,8 +240,8 @@ for(i in 1:length(trk_files)){
       st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
-                   covts_path = "data/working/covts_rasters",
-                   covts_names = c("srtm0", "slope", "vrm3", "dist_slp_m"),
+                   covts_path = "data/working/covts_rasters/topo_res01",
+                   covts_names = c("res01_srtm0", "res01_slope", "res01_vrm3", "dist_slp"),
                    return_sf = FALSE, extract_method = "merge")
    
    
@@ -293,6 +297,12 @@ hab_meta <- read_csv("data/working/copernicus_codes.csv")
 model_data <- model_data %>%
    left_join(dplyr::select(hab_meta, "Map code", "class_code"), by = c("land_use" = "Map code")) %>%
    rename(land_cov = class_code)
+
+# Make variable names more understandable
+model_data <- model_data %>% 
+   rename(elev = res01_srtm0,
+          slope = res01_slope,
+          rugg = res01_vrm3)
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
