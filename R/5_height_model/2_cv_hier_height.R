@@ -1,4 +1,4 @@
-# 18-10-2020
+# 16-02-2021
 
 # In this script we fit a hierarchical binomial model to the height data of the 
 # vulture data set
@@ -7,18 +7,19 @@ rm(list = ls())
 
 library(tidyverse)
 library(glmmTMB)
+# library(splines)
 library(furrr)
 
-# # Set future maxsize to 850MB
-# options(future.globals.maxSize = 850*1024^2)
-# 
-# future::plan("multisession")
+# Set future maxsize to 850MB
+options(future.globals.maxSize = 850*1024^2)
+
+future::plan("multisession", workers = 2)
 
 
 # Load data ---------------------------------------------------------------
 
 # Vulture data
-vults <- readRDS("data/working/data_height_ready.rds")
+vults <- readRDS("data/working/data_height_ready_noextrm.rds")
 
 # Remove records with no height
 vults <- vults %>% 
@@ -26,12 +27,6 @@ vults <- vults %>%
 
 
 # Prepare variables -------------------------------------------------------
-
-# Change variable names to make them more readable
-vults <- vults %>% 
-    rename(elev = srtm0,
-           rugg = vrm3,
-           dist_slp = dist_slp_m)
 
 # Add log of distances since the effect probably saturates
 vults <- vults %>% 
@@ -61,10 +56,37 @@ vults <- vults %>%
     mutate(risk_t1 = lag(risk)) %>% 
     ungroup()
 
+# We also define a variable phi that takes on the values:
+# 1 if risk_t1 = 1 and -1 if risk_t1 = 0. This will be used
+# to define the autocorrelation function
+vults <- vults %>% 
+    mutate(phi = if_else(risk_t1 == 1, 1, -1))
+
 # We also need a numeric resolution variable
 vults <- mutate(vults,
                 res = as.numeric(str_remove(res_fct, "res_")))
 
+# Recalculate dt
+vults <- vults %>% 
+    group_by(bird_id) %>% 
+    mutate(dt = as.numeric(difftime(datetime, lag(datetime), units = "hours"))) %>% 
+    ungroup()
+
+# We further set risk_t1 = 0, phi = 0 and dt = 100 for the first values of each bird
+# so that autocorrelation does not come into the equation
+vults <- vults %>% 
+    mutate(risk_t1 = if_else(is.na(dt), 0, risk_t1),
+           phi = if_else(is.na(dt), 0, phi),
+           dt = if_else(is.na(dt), 100, dt))
+
+# Also the autocorrelation should be reduced with time therefore we set
+# an exponential decay with dt
+vults <- vults %>% 
+    mutate(phi = phi * exp(-dt))
+
+# vults %>% 
+#     dplyr::select(datetime, dt, risk, risk_t1, phi) %>% 
+#     print(n = 20)
 
 # Prepare train and validation --------------------------------------------
 
@@ -102,7 +124,8 @@ bird_ids <- bird_ids %>%
     mutate(cv_id = paste(bird_id, cv_group, sep = "_"))
 
 # Sample one third of birds 10 times
-set.seed(934875)
+set.seed(693875)
+#set.seed(34562)
 
 f <- function(df){
     df %>% 
@@ -122,70 +145,79 @@ for (i in seq_along(cv_ids)){
 
 # Define models to compare ------------------------------------------------
 
-# Define model elements
-mod_elem <- list(
-    dist = c("dist_col", "dist_sfs", "dist_col_any"),
-    dist2 = c("log_dist_col", "dist_sfs", "dist_col_any"),
-    log_dist = c("log_dist_col", "log_dist_sfs", "log_dist_col_any"),
-    topo1 = c("elev", "slope", "dist_slp", "rugg"),
-    topo2 = c("elev", "slope", "rugg"),
-    topo3 = c("elev", "dist_slp", "rugg"),
-    topo4 = c("elev", "slope", "log_dist_slp", "rugg"),
-    hab = c("closed", "crops", "urban", "water", "prot_area"),
-    hab2 = c("NDVI_mean", "prot_area"),
-    time = c("ttnoon", "ttnoon_sq"),
-    risk_t1 = c("risk_t1")
-)
+form <- function(fixed, intrc=NULL, rdm=NULL, other=NULL, resp){
+    
+    mod <- fixed
+    
+    if(!is.null(intrc)){
+        intrc <- sapply(intrc, paste, collapse = ":")
+        mod <- c(mod, intrc)
+    } 
+    if(!is.null(rdm)){
+        rdm <- paste0("(0 +", rdm, "|bird_id)")
+        mod <- c(mod, rdm)
+    } 
+    
+    if(!is.null(other)){
+        mod <- c(mod, other)
+    } 
+    
+    return(reformulate(mod, response = resp))
+}
 
-# Helper function to formulate models from elements
-form <- function(data, mod_elem, include, intr = NULL){
-    
-    # Extract variables
-    elem <- unlist(mod_elem[include])
-    
-    # Define interactions
-    fixed <- elem # In case there are no interactions
-    
-    # Define interactions
-    if(!is.null(intr)){
-        for(i in seq_along(intr)){
-            v1 <- mod_elem[[as.character(intr[[i]][[2]])]]
-            v2 <- as.character(intr[[i]][[3]])[1]
-            if(!(v2 %in% names(data))) stop("variable not in data frame")
-            ref <- as.character(intr[[i]][[3]])[2]
-            
-            if(!is.na(ref)){
-                lv <- unique(vults[[v2]])
-                lv <- lv[lv != ref]
-                
-                out <- paste(rep(v1, each = length(lv)), lv , sep = ":")
-            } else{
-                out <- paste(v1, v2, sep = ":")
-            }
-            
-            fixed <- c(fixed, out)
-        }
-    }
-    
-    # Define random effects
-    rdm <- c(paste("(0 +", elem,"|bird_id)"))
-    
-    # Write formula
-    reformulate(c(1, fixed, rdm), "risk")
+# function for quoting terms
+qq <- function(...) {
+    sapply(match.call()[-1], deparse)
 }
 
 # Define models
 models <- list(
-    mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo1 ~ zone_fct(z_1))),
-    mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo2 ~ zone_fct(z_1))),
-    mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo3 ~ zone_fct(z_1))),
-    mod4 = form(vults, mod_elem, c("dist", "topo4", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo4 ~ zone_fct(z_1))),
-    mod5 = form(vults, mod_elem, c("dist", "topo4", "hab2", "risk_t1"), intr = list(risk_t1 ~ res, topo4 ~ zone_fct(z_1))),
-    mod6 = form(vults, mod_elem, c("dist2", "topo4", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo4 ~ zone_fct(z_1))),
-    mod7 = form(vults, mod_elem, c("log_dist", "topo4", "hab", "risk_t1"), intr = list(risk_t1 ~ res, topo4 ~ zone_fct(z_1))),
-    mod8 = form(vults, mod_elem, c("log_dist", "topo4", "risk_t1"), intr = list(risk_t1 ~ res, topo4 ~ zone_fct(z_1))),
-    mod9 = form(vults, mod_elem, c("log_dist", "topo4", "risk_t1"), intr = list(risk_t1 ~ res)),
-    mod10 = form(vults, mod_elem, c("dist2", "topo4", "time", "risk_t1"), intr = list(risk_t1 ~ res))
+    mod1 = form(fixed = qq(1, dist_col, dist_col_any, dist_sfs, 
+                           elev, slope, rugg, closed, crops, urban, water, prot_area),
+                intrc = NULL,
+                rdm = qq(1, dist_col, dist_col_any, dist_sfs, 
+                         elev, slope, rugg, closed, crops, urban, water, prot_area),
+                resp = qq(risk)),
+    mod2 = form(fixed = qq(1, dist_col, dist_col_any, dist_sfs,
+                           elev, slope, rugg, closed, crops, urban, water, prot_area,
+                           ttnoon, ttnoon_sq,),
+                intrc = NULL,
+                rdm = qq(1, dist_col, dist_col_any, dist_sfs,
+                         elev, slope, rugg, closed, crops, urban, water, prot_area,
+                         ttnoon, ttnoon_sq),
+                resp = qq(risk)),
+    mod3 = form(fixed = qq(1, phi, dist_col, dist_col_any, dist_sfs, 
+                           elev, slope, rugg, closed, crops, urban, water, prot_area,
+                           ttnoon, ttnoon_sq),
+                intrc = NULL,
+                rdm = qq(1, dist_col, dist_col_any, dist_sfs, 
+                         elev, slope, rugg, closed, crops, urban, water, prot_area,
+                         ttnoon, ttnoon_sq),
+                resp = qq(risk)),
+    mod4 = form(fixed = qq(1, phi, log_dist_col, dist_col, dist_col_any, dist_sfs, 
+                           elev, slope, rugg, closed, crops, urban, water, prot_area,
+                           ttnoon, ttnoon_sq),
+                intrc = NULL,
+                rdm = qq(1, log_dist_col, dist_col, dist_col_any, dist_sfs, 
+                         elev, slope, rugg, closed, crops, urban, water, prot_area,
+                         ttnoon, ttnoon_sq),
+                resp = qq(risk)),
+    mod5 = form(fixed = qq(1, phi, dist_col, dist_col_any, dist_sfs, 
+                           elev, dist_slp, slope, rugg, closed, crops, urban, water, prot_area,
+                           ttnoon, ttnoon_sq),
+                intrc = NULL,
+                rdm = qq(1, dist_col, dist_col_any, dist_sfs, 
+                         elev, dist_slp, slope, rugg, closed, crops, urban, water, prot_area,
+                         ttnoon, ttnoon_sq),
+                resp = qq(risk)),
+    mod6 = form(fixed = qq(1, phi, dist_col, dist_col_any, dist_sfs, 
+                           elev, log_dist_slp, slope, rugg, closed, crops, urban, water, prot_area,
+                           ttnoon, ttnoon_sq),
+                intrc = NULL,
+                rdm = qq(1, dist_col, dist_col_any, dist_sfs, 
+                         elev, log_dist_slp, slope, rugg, closed, crops, urban, water, prot_area,
+                         ttnoon, ttnoon_sq),
+                resp = qq(risk))
 )
 
 # Set model names
@@ -199,12 +231,12 @@ for (i in seq_along(models)){
 # Load function to fit and predict
 source("R/functions/fitCVheight.R")
 
-for(m in seq_along(models)){
+for(m in 5:6){
     
-    cv_results <- future_map(cv_ids, ~fitCVheight(data_train = "data/working/data_height_ready.rds",
-                                                  data_test = "data/working/data_height_test.rds",
+    cv_results <- future_map(cv_ids, ~fitCVheight(data_train = "data/working/data_height_ready_noextrm.rds",
+                                                  data_test = "data/working/data_height_ready_noextrm.rds",
                                                   test_ids = .x, model = models[[m]],
-                                                  save_fit = FALSE, output_file = NULL, plotAUC = FALSE))
+                                                  save_fit = FALSE, output_file = NULL, plotAUC = TRUE))
     
     cv_results <- do.call("rbind", cv_results)
     

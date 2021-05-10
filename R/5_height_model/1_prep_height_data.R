@@ -55,6 +55,16 @@ for(i in 1:length(trk_files)){
       next
    }
    
+   # Certain birds were excluded
+   if(id_sel %in% c("ct08", "ct09")){
+      print("This bird was excluded")
+      next
+   }
+   
+   # We removed the sub-adult age therefore they should become juveniles
+   trk_sel <- trk_sel %>% 
+      mutate(age = if_else(age == "subad", "juv", age))
+   
    # Take only locations that correspond to a moving state
    trk_sel <- trk_sel %>% 
       filter(state == 2)
@@ -116,8 +126,8 @@ for(i in 1:length(trk_files)){
       st_as_sf(coords = c("lon", "lat"), crs = 4326, remove = FALSE) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
-                   covts_path = "data/working/covts_rasters",
-                   covts_names = c("srtm0", "slope", "vrm3", "dist_slp_m"),
+                   covts_path = "data/working/covts_rasters/topo_res01",
+                   covts_names = c("res01_srtm0", "res01_slope", "res01_vrm3", "dist_slp"),
                    return_sf = FALSE, extract_method = "merge")
    
    
@@ -205,6 +215,12 @@ model_data %>%
 model_data <- model_data %>%
    mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
 
+# Make variable names more understandable
+model_data <- model_data %>% 
+   rename(elev = res01_srtm0,
+          slope = res01_slope,
+          rugg = res01_vrm3)
+
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
    mutate(i = 1,
@@ -219,7 +235,7 @@ model_data <- model_data %>%
           res_fct = res) %>%
    spread(res, i, fill = 0) %>%
    mutate(i = 1,
-          age = factor(age, levels = c("juv", "subad", "ad")),
+          age = factor(age, levels = c("juv", "ad")),
           age_fct = age) %>%
    spread(age, i, fill = 0)
 
