@@ -25,10 +25,10 @@ vults <- vults %>%
            step_id_ = paste(bird_id, step_id_, sep = "_"))
 
 # Change variable names to make them more readable
-vults <- vults %>% 
-    rename(elev = srtm0,
-           rugg = vrm3,
-           dist_slp = dist_slp_m)
+# vults <- vults %>%
+#     rename(slope = res01_slope)
+#            rugg = vrm3,
+#            dist_slp = dist_slp_m)
 
 # Add log of distances since the effect probably saturates
 vults <- vults %>% 
@@ -82,7 +82,8 @@ bird_ids <- bird_ids %>%
     mutate(cv_id = paste(bird_id, cv_group, sep = "_"))
 
 # Sample one third of birds 10 times
-set.seed(934875)
+#set.seed(693875)
+set.seed(34562)
 
 f <- function(df){
     df %>% 
@@ -102,77 +103,137 @@ for (i in seq_along(cv_ids)){
 
 # Define models to compare ------------------------------------------------
 
+# Helper function to formulate models from elements
+form <- function(fxd, intn, rdm, data){
+    # Fixed effects
+    fxds <- unlist(fxd)
+    
+    # Interactions
+    intns <- vector("list", length = length(intn))
+    
+    for(i in seq_along(intn)){
+        if(any(str_detect(unlist(intn[[i]][[2]]), "\\("))){
+            main <- unlist(intn[[i]][[1]])
+            ref <- str_extract(intn[[i]][[2]], "(?<=\\().*?(?=\\))")
+            intvars <- str_remove(intn[[i]][[2]], "\\(.*\\)")
+            intvars <- levels(data[,intvars, drop = T])
+            intvars <- intvars[intvars != ref]
+            intns[[i]] <- apply(arrange(expand.grid(main, intvars), Var1), 1, paste, collapse = ":")
+            
+        } else {
+            intns[[i]] <- paste(unlist(intn[[i]][1]), unlist(intn[[i]][-1]), sep = ":")
+        } 
+    }
+    
+    # Random effects
+    if(identical(rdm, "all")){
+        rdms <- paste0("(0+", c(fxds, unlist(intns)), "|bird_id)")
+    } else {
+        rdms <- vector("list", length = length(rdm))
+        for(i in seq_along(rdms)){
+            tt <- do.call(paste, args = c(rdm[[i]], sep = "|"))
+            rdms[[i]] <- paste0("(0+", tt, ")")
+        }
+    }
+    
+    reformulate(c(-1, fxds, unlist(intns), unlist(rdms), "(1|step_id_)"), response = "case")
+}
+
 # Define model elements
 mod_elem <- list(
     dist = c("dist_col", "dist_sfs", "dist_col_any"),
     dist2 = c("log_dist_col", "dist_sfs", "dist_col_any"),
     log_dist = c("log_dist_col", "log_dist_sfs", "log_dist_col_any"),
+    dist3 = c("dist_col", "dist_sfs", "dist_col_any", "log_dist_col"),
     topo1 = c("elev", "slope", "dist_slp", "rugg"),
     topo2 = c("elev", "slope", "rugg"),
     topo3 = c("elev", "dist_slp", "rugg"),
-    topo4 = c("elev", "slope", "log_dist_slp", "rugg"),
     hab = c("closed", "crops", "urban", "water", "prot_area"),
     hab2 = c("NDVI_mean", "prot_area"),
     mov = c("sl_")
 )
 
-# Helper function to formulate models from elements
-form <- function(data, mod_elem, include, intr = NULL){
-    
-    # Extract variables
-    elem <- unlist(mod_elem[include])
-    
-    # Define interactions
-    fixed <- elem # In case there are no interactions
-    
-    # Define interactions
-    if(!is.null(intr)){
-        for(i in seq_along(intr)){
-            v1 <- mod_elem[[as.character(intr[[i]][[2]])]]
-            v2 <- as.character(intr[[i]][[3]])[1]
-            if(!(v2 %in% names(data))) stop("variable not in data frame")
-            ref <- as.character(intr[[i]][[3]])[2]
-            
-            if(!is.na(ref)){
-                lv <- unique(vults[[v2]])
-                lv <- lv[lv != ref]
-                
-                out <- paste(rep(v1, each = length(lv)), lv , sep = ":")
-            } else{
-                out <- paste(v1, v2, sep = ":")
-            }
-            
-            fixed <- c(fixed, out)
-        }
-    }
-    
-    # Define random effects
-    rdm <- c(paste("(0 +", elem,"|bird_id)"), "(1|step_id_)")
-
-    # Write formula
-    reformulate(c(-1, fixed, rdm), "case")
-}
-
 # Define models
-int1 <- list(dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions
-int2 <- list(log_dist ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
-int3 <- list(dist2 ~ age_fct(ad), mov ~ ttnoon, mov ~ ttnoon_sq) # basic interactions with log dist
-
-# Final models to test
 models <- list(
-    mod1 = form(vults, mod_elem, c("dist", "topo1", "hab", "mov"), intr = c(int1, list(mov ~ res, topo1 ~ zone_fct(z_1)))),
-    mod2 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
-    mod3 = form(vults, mod_elem, c("dist", "topo3", "hab", "mov"), intr = c(int1, list(mov ~ res, topo3 ~ zone_fct(z_1)))),
-    mod4 = form(vults, mod_elem, c("dist", "topo4", "hab", "mov"), intr = c(int1, list(mov ~ res, topo4 ~ zone_fct(z_1)))),
-    mod5 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
-    mod6 = form(vults, mod_elem, c("dist", "topo2", "hab2", "mov"), intr = c(int1, list(mov ~ res, topo2 ~ zone_fct(z_1), hab2 ~ zone_fct(z_1)))),
-    mod7 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
-    mod8 = form(vults, mod_elem, c("log_dist", "topo2", "hab", "mov"), intr = c(int2, list(mov ~ res))),
-    mod9 = form(vults, mod_elem, c("dist2", "topo2", "hab", "mov"), intr = c(int3, list(mov ~ res, topo2 ~ zone_fct(z_1)))),
-    mod10 = form(vults, mod_elem, c("dist", "topo2", "hab", "mov"), intr = c(int1, list(dist ~ res, topo2 ~ res, hab ~res,
-                                                                                        mov ~ res, topo2 ~ zone_fct(z_1))))
+    mod1 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod2 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod3 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("dist_col_any", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("dist_sfs", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod4 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id")),
+                           list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod5 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")), 
+                            list(mod_elem["topo2"], "zone_fct(z_1)"),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod6 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("log_dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id")),
+                           list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id")),
+                           list(c("log_dist_col:ttnoon", "log_dist_col:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod7 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")], "log_sl"),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("res")),
+                            list("log_sl", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("log_sl:ttnoon", "log_sl:ttnoon_sq"), c("bird_id")),
+                           list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id"))),
+                data = vults),
+    mod8 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res", "juv"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id")),
+                           list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id"))),
+                data = vults)#,
+    # mod5 = form(fxd = c("ns(dist_col, 5)", "dist_col_any", "dist_sfs", "ns(sl_, 5)", mod_elem[c("topo2", "hab")]),
+    #             intn = list(list(c("ns(dist_col, 5)", "dist_col_any", "dist_sfs"), c("juv")),
+    #                         list("ns(dist_col, 5)", c("ttnoon", "ttnoon:juv")),
+    #                         list("ns(sl_, 5)", c("ttnoon", "res"))),
+    #             rdm = list(list(unlist(c("ns(dist_col, 5)", "dist_col_any", "dist_sfs", mod_elem[c("topo2", "hab")])), c("bird_id")),
+    #                        list(c("ns(sl_, 5):ttnoon"), c("bird_id"))),
+    #             data = vults),
+    # mod6 = form(fxd = c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)", "ns(sl_, 5)", mod_elem[c("topo2", "hab")]),
+    #             intn = list(list(c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)"), c("juv")),
+    #                         list("ns(sl_, 5)", c("ttnoon", "res"))),
+    #             rdm = list(list(unlist(c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)", mod_elem[c("topo2", "hab")])), c("bird_id")),
+    #                        list(c("ns(sl_, 5):ttnoon"), c("bird_id"))),
+    #             data = vults)
 )
-
 # Set model names
 for (i in seq_along(models)){
     attr(models[[i]], "model") <- paste0("mod", i)
@@ -192,7 +253,8 @@ for(m in seq_along(models)){
     
     cv_results <- future_map(cv_ids, ~fitCVssf(train_data = "data/working/data_ssf_ready.rds",
                                                test_data = "data/working/data_ssf_test.rds",
-                                               test_ids = .x, model = models[[m]]))
+                                               test_ids = .x, model = models[[m]], seed = 478476),
+                             .options = future_options(seed = 478476))
     
     cv_results <- do.call("rbind", cv_results)
     
@@ -203,12 +265,26 @@ for(m in seq_along(models)){
 
 # Explore results ---------------------------------------------------------
 
-resultsdir <- "hpc/output/cv_results_old/"
+resultsdir <- "hpc/output/"
 
 # Load from cluster
-files <- list.files(resultsdir, pattern = "cv_results_[1-9].rds")
+files <- list.files(resultsdir, pattern = "cv_results_[1-5]t.rds")
 
 cv_results <- data.frame()
+
+for(i in seq_along(files)){
+    cv_results <- rbind(cv_results,
+                        readRDS(paste0(resultsdir, files[i])))
+}
+
+cv_results <- rbind(cv_results,
+                    readRDS(paste0(resultsdir, "cv_results_10.rds")),
+                    readRDS(paste0(resultsdir, "cv_results_11.rds")))
+
+
+# Load the other batch
+resultsdir <- "hpc/output/"
+files <- list.files(resultsdir, pattern = "cv_results_[1-6]t1.rds")
 
 for(i in seq_along(files)){
     cv_results <- rbind(cv_results,

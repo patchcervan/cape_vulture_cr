@@ -269,8 +269,8 @@ for(i in 1:length(trk_files)){
       st_transform(crs = 4326) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
-                   covts_path = "data/working/covts_rasters",
-                   covts_names = c("srtm0", "slope", "vrm3", "dist_slp_m"),
+                   covts_path = "data/working/covts_rasters/topo_res01",
+                   covts_names = c("res01_srtm0", "res01_slope", "res01_vrm3", "dist_slp"),
                    return_sf = FALSE, extract_method = "merge")
    
    
@@ -379,14 +379,11 @@ model_data %>%
 model_data <- model_data %>%
    mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
 
-# # There is only one bird with resolution 3 and one with resolution 8
-# rowSums(table(model_data$res, model_data$bird_id) != 0)
-# 
-# # We'll transfer them to resolution 4 and 24 respectively
-# model_data <- model_data %>% 
-#    mutate(res = case_when(res == 3 ~ 4,
-#                           res == 8 ~ 24,
-#                           TRUE ~ res))
+# Make variable names more understandable
+model_data <- model_data %>% 
+   rename(elev = res01_srtm0,
+          slope = res01_slope,
+          rugg = res01_vrm3)
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
@@ -405,6 +402,71 @@ model_data <- model_data %>%
           age = factor(age, levels = c("juv", "ad")),
           age_fct = age) %>%
    spread(age, i, fill = 0)
+
+
+# Define trips from colony ------------------------------------------------
+
+# Each day will be a trip unless the bird doesn't return to colony (dist_col < 5e3)
+
+# Number of locations for each bird
+model_data <- nest(model_data, data = -c(bird_id))
+
+# Function to define trips from the central colony
+f <- function(trk){
+   
+   trk <- trk %>% 
+      mutate(date = lubridate::date(t2_))
+   
+   trips <- trk %>% 
+      group_by(date) %>% 
+      summarize(mindist = min(dist_col)) %>% 
+      mutate(at_col = if_else(mindist <= 5e3, 1, 0))
+   
+   trips$trip <- trips$at_col
+   
+   # Initiate trips
+   t <- 1
+   trips$trip[1] <- t
+   
+   for(i in 2:nrow(trips)){
+      if(trips$trip[i] == 0){
+         trips$trip[i] <- t
+      } else {
+         t <- t + 1 
+         trips$trip[i] <- t
+      }
+   }
+   
+   trips <- trips %>% 
+      group_by(trip) %>% 
+      mutate(days_away = difftime(date, lag(date), units = "day"),
+             days_away = ifelse(is.na(days_away), 0, days_away),
+             days_away = cumsum(days_away)) %>% 
+      ungroup()
+   
+   trk <- trk %>% 
+      left_join(trips %>% dplyr::select(date, trip, days_away),
+                by = "date")
+   
+   return(trk)
+   
+}
+
+model_data$data <- model_data$data %>% 
+   map(~f(.x))
+
+model_data <- unnest(model_data, cols = c(bird_id, data))
+
+model_data <- model_data %>% 
+   mutate(trip = paste(bird_id, trip, sep = "_"))
+
+# model_data %>%
+#    group_by(age_fct, trip) %>%
+#    summarize(days_away = max(days_away)) %>%
+#    filter(days_away < 25) %>%
+#    ggplot() +
+#    geom_histogram(aes(x = days_away)) +
+#    facet_wrap("age_fct")
 
 
 # Save data ---------------------------------------------------------------

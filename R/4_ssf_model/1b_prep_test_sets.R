@@ -105,22 +105,26 @@ for(i in 1:length(trk_files)){
    new_trk <- trk_xyt %>% 
       track_resample(rate = hours(trk_res), tolerance = minutes(trk_tol))
    
+   # Create a step id variable
+   new_trk <- new_trk %>% 
+      mutate(step_id_ = row_number())
+   
    unique(year(new_trk$t_))
    
    # Define projected coordinate system
    tmerproj <- makeTmerProj(st_as_sf(new_trk, coords = c("x_", "y_"), crs = 4326))
    
-   # Produce random steps
-   use_rdm <- new_trk %>% 
-      steps(keep_cols = 'end') %>% 
-      random_steps(n_control = 10)
+   # # Produce random points by taking random distances and angles from the central colony
+   # use_rdm <- new_trk %>% 
+   #    steps(keep_cols = 'end') %>% 
+   #    random_steps(n_control = 10)
 
    # At this point I need to save the attributes so that they are not lost later in the process
-   atts <- attributes(use_rdm)
+   atts <- attributes(new_trk)
    
    # Nest by year
-   use_rdm <- use_rdm %>% 
-      mutate(year = year(t1_)) %>% 
+   new_trk <- new_trk %>% 
+      as.data.frame() %>% 
       nest(data = -c(bird_id, year))
    
    
@@ -134,18 +138,80 @@ for(i in 1:length(trk_files)){
       nest(data = -year)
    
    # Classify birds according to where their colony for the year is
-   use_rdm <- use_rdm %>% 
+   new_trk <- new_trk %>% 
       left_join(dplyr::select(colony_db, bird_id, year, zone), by = c("bird_id", "year"))
    
    # filtering bursts might result in colony years and track years not matching
-   years <- unique(use_rdm$year)
+   years <- unique(new_trk$year)
    
    colony <- colony %>% 
       filter(year %in% years)
    
    # for each year's colony find distance to tracking locations
+   new_trk <- new_trk %>% 
+      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
+                           st_transform(crs = tmerproj))) 
+   
+   new_trk <- new_trk %>%
+      mutate(dist_col = future_map2(.$data, colony$data, ~as.numeric(st_distance(.x, .y))))
+   
+
+   # Produce available points ---------------------------------------------------
+
+   # Produce random points by taking random distances and angles from the central colony
+   # new_trk <- unnest(new_trk,  cols = c(-year))
+   
+   rdm <- vector("list", length = length(years))
+   
+   # Random distances per year
+   rdmdist <- new_trk$data %>% 
+      map2(new_trk$dist_col, ~runif(nrow(.x)*10, 0, max(.y)+1e5))
+   
+   # Random angles per year
+   rdmang <- new_trk$data %>% 
+      map(~runif(nrow(.x)*10, 0, 2*pi))
+   
+   cc_x <- rdmdist %>% 
+      map2(rdmang, ~.x*cos(.y)) %>% 
+      map2(colony$data, ~.x + st_coordinates(.y)[,1])
+   
+   cc_y <- rdmdist %>% 
+      map2(rdmang, ~.x*sin(.y)) %>% 
+      map2(colony$data, ~.x + st_coordinates(.y)[,2])
+   
+   # Unnest track
+   new_trk <- unnest(new_trk,  cols = c(-year))
+   
+   # Create random coordinates with the same characteristics as observed locations
+   use_rdm <- new_trk %>% 
+      st_as_sf() %>% 
+      st_drop_geometry() %>% 
+      slice(rep(1:n(), each = 10)) %>% 
+      mutate(x = do.call("c", cc_x),
+             y = do.call("c", cc_y)) %>% 
+      st_as_sf(coords = c("x", "y"), crs = tmerproj, remove = F) %>% 
+      st_transform(4326) %>% 
+      mutate(x_ = st_coordinates(.)[,1],
+             y_ = st_coordinates(.)[,2],
+             case_ = FALSE) %>% 
+      st_drop_geometry() %>% 
+      rbind(., new_trk %>% 
+               st_as_sf() %>% 
+               st_drop_geometry() %>% 
+               mutate(case_ = TRUE))
+   
+   
+   # Recalculate distance to colony ------------------------------------------
+   
+   # Nest by year
    use_rdm <- use_rdm %>% 
-      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x2_", "y2_"), crs = 4326, remove = F) %>% 
+      dplyr::select(-dist_col) %>% 
+      as.data.frame() %>% 
+      nest(data = -c(bird_id, year))
+   
+   # for each year's colony find distance to tracking locations
+   use_rdm <- use_rdm %>% 
+      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
                            st_transform(crs = tmerproj))) 
    
    use_rdm <- use_rdm %>%
@@ -186,7 +252,7 @@ for(i in 1:length(trk_files)){
    
    # For each year calculate distance between locations and any sfs
    use_rdm <- use_rdm %>% 
-      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = F) %>% 
+      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
       st_transform(tmerproj) %>% 
       mutate(dist_sfs = minDist_cpp(st_coordinates(.), st_coordinates(sfs)))
    
@@ -196,7 +262,7 @@ for(i in 1:length(trk_files)){
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 
       st_drop_geometry() %>% 
-      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = F)
+      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = F)
    
    # Nest and extract land use class for the different years
    use_rdm <- use_rdm  %>%
@@ -217,7 +283,7 @@ for(i in 1:length(trk_files)){
    
    # Nest and extract NDVI for the different years
    use_rdm <- use_rdm  %>%
-      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
       nest(data = -year) %>% 
       mutate(data = future_map2(.$data, .$year, ~ extractCovts(.x,
                                                                loadCovtsPath = "R/functions/loadCovtsRasters.R",
@@ -237,7 +303,7 @@ for(i in 1:length(trk_files)){
    
    # Extract topographical covariates
    use_rdm <- use_rdm %>%
-      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
                    covts_path = "data/working/covts_rasters/topo_res01",
@@ -249,7 +315,7 @@ for(i in 1:length(trk_files)){
    
    # Calculate intersection between locations and protected areas
    pa_int <- use_rdm %>%
-      st_as_sf(coords = c("x2_", "y2_"), crs = 4326, remove = FALSE) %>%
+      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>%
       st_intersects(pa, sparse = FALSE)
    
    # Create a protected areas covariate
