@@ -7,36 +7,23 @@ library(TMB)
 
 rm(list = ls())
 
-# setwd("/media/pachorris/DATA/Documentos/mis_trabajos/Academic/cape_vulture_cr")
+setwd("/media/pachorris/DATA/Documentos/mis_trabajos/Academic/cape_vulture_cr")
 
 
 # Load data ---------------------------------------------------------------
 
 vults <- read_rds("data/working/data_height_ready.rds")
 
-# Remove unwanted birds
+# Remove records with no height or no dt
 vults <- vults %>% 
-   filter(!bird_id %in% c("ct08", "ct09"))
+   filter(!is.na(height),
+          !is.na(dt))
+
+# Load function to calculate AIC from TMB object
+source("R/functions/TMBAIC.R")
 
 
 # Prepare variables -------------------------------------------------------
-
-# Remove repeated observations
-vults <- vults %>% 
-   group_by(bird_id) %>% 
-   distinct(datetime, .keep_all = T) %>% 
-   ungroup()
-
-# Remove records with no height or no dt
-vults <- vults %>% 
-   filter(!is.na(height))
-
-# Recalculate dt
-vults <- vults %>% 
-   group_by(bird_id) %>% 
-   mutate(dt = as.numeric(difftime(lead(datetime), datetime, units = "hours"))) %>% 
-   ungroup()
-
 
 # Change variable names to make them more readable
 vults <- vults %>% 
@@ -73,74 +60,56 @@ vults <- vults %>%
 # Prepare data frame to store filtering results
 vults_filter <- data.frame()
 
-# Standardize response and covariates
-vults <- vults %>% 
-   mutate(height = scale(height, center = F)) %>% 
-   mutate(across(.cols = -one_of(c("bird_id", "height", "dt")), ~scale(.x, center = TRUE)),
-          intcp = 1)
+# Compile model
+compile("R/functions/TMB/ssm_ou_err_covts.cpp")
+dyn.load(dynlib("R/functions/TMB/ssm_ou_err_covts"))
 
 
-# Prepare data for TMB ----------------------------------------------------
-
-# Remove last dt of each group
-dts <- vults %>% 
-   group_by(bird_id) %>%
-   slice(-tail(row_number(), 1)) %>%
-   pull(dt)
-
-data.bundle <- list("z" = vults$height, 
-                    "dtime" = dts,
-                    "X" = dplyr::select(vults, -c(bird_id, height, dt)) %>% as.matrix(),
-                    # "Y" = dplyr::select(vults, intcp, slope, rugg) %>% as.matrix(),
-                    "B" = 0.1,
-                    "N" = nrow(vults),
-                    "K" = ncol(dplyr::select(vults, -c(bird_id, height, dt))),
-                    # "L" = ncol(dplyr::select(vults, intcp, slope, rugg)),
-                    "J" = n_distinct(vults$bird_id),
-                    "n_j" = vults %>% group_by(bird_id) %>% summarize(n = n()) %>% pull(n),
-                    "group" = rep(0:(n_distinct(vults$bird_id)-1), times = vults %>% group_by(bird_id) %>% summarize(n = n()) %>% pull(n)), 
-                    "lambda" = 1) 
-
-# Define initial values
-param <- list("mu_alpha" = rep(0, data.bundle$K),
-              "lsig_alpha" = rep(log(0.5), data.bundle$K),
-              "delta_alpha" = matrix(0, ncol = data.bundle$K, nrow = data.bundle$J),
-              "mu_lsig_err" = 0,
-              "sig_lsig_err" = 0,
-              "delta_lsig_err" = rnorm(data.bundle$J, 0, 0.01),
-              "lsigma" = log(1), "lbeta" = log(0.1),
-              "ztrans" = data.bundle$z)
+for(i in seq_along(bird_ids)){
    
-
-# Fit TMB model with obs error and covts ----------------------------------
-
-compile("R/functions/TMB/hier_ssm_ou.cpp")
-dyn.load(dynlib("R/functions/TMB/hier_ssm_ou"))
-
-openmp(3)
-
-Obj <- MakeADFun(data = data.bundle, parameters = param, random = c("ztrans", "delta_alpha", "delta_lsig_err"), DLL = "hier_ssm_ou", silent = F)
+   gc()
    
-# Neg Log Likelihood minimization
-lb <- c(-5, rep(-5, data.bundle$K - 1), rep(-5, data.bundle$K), -3, -3, -3, -3)
-ub <- c(1, rep(5, data.bundle$K - 1), rep(2, data.bundle$K), 2, 2, 1, 1)
+   id_sel <- bird_ids[i]
    
-Opt <- NULL
-
-Opt <- optim(Obj$par, Obj$fn, Obj$gr,
-             method = "L-BFGS-B", #Obj$method,
-             lower = lb, upper = ub,
-             control = list(maxit = 1e5, factr = 1e9, trace = 0), hessian = TRUE)
-
-fit_summ <- sdreport(Obj, getReportCovariance = FALSE)
-
-fit_summ <- readRDS("hpc/output/hgt_ssm_summ.rds")
-Obj <- readRDS("hpc/output/ssm_obj.rds")
-Opt <- readRDS("hpc/output/ssm_opt.rds")
-
-
-
-TMBhelper::TMBAIC(Opt)
+   vults_mod <- vults %>% 
+      filter(bird_id == id_sel)
+   
+   # Standardize response and covariates
+   vults_mod <- vults_mod %>% 
+      mutate(height = scale(height, center = F)) %>% 
+      mutate(across(.cols = -one_of(c("bird_id", "height", "dt")), ~scale(.x, center = TRUE)),
+             intcp = 1)
+   
+   
+   # Fit TMB model with obs error and covts ----------------------------------
+   
+   # Prepare data for TMB
+   data.bundle <- list("z" = vults_mod$height, 
+                       "dtime" = vults_mod$dt,
+                       "X" = dplyr::select(vults_mod, -c(bird_id, height, dt)) %>% as.matrix(),
+                       "Y" = dplyr::select(vults_mod, intcp, slope, rugg) %>% as.matrix(),
+                       "B" = 0.01) 
+   
+   param <- list("lbeta" = log(1), "lsigma" = log(1),# "df_raw" = 20, 
+                 "ztrans" = c(0, data.bundle$z),
+                 "alpha" = rep(0, ncol(data.bundle$X)), "gamma" = c(0, 0, 0))
+   
+   gc()
+   
+   Obj <- MakeADFun(data = data.bundle, parameters = param, random = c("ztrans"), DLL = "ssm_ou_err_covts", silent = T)
+   
+   # Neg Log Likelihood minimization
+   Opt <- NULL
+   
+   try(
+   Opt <- optim(par = Obj$par, fn = Obj$fn, gr = Obj$gr, method = Obj$method,
+                control = list(maxit = 1e3, reltol = 1e-5, trace = 0), hessian = TRUE)
+   )
+   
+   if(!is.null(Opt)){
+      
+      fit_summ <- sdreport(Obj, getReportCovariance = FALSE)
+      aic_m <- TMBAIC(Opt)
       
       # Run latent states simulation
       sims <- map(1:500, ~Obj$simulate()["zlat"])
