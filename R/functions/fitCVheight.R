@@ -1,24 +1,43 @@
 fitCVheight <- function(data_train = "data/working/data_height_ready.rds", data_test = "data/working/data_height_test.rds",
                         test_ids, model, save_fit = FALSE, output_file = NULL, plotAUC = FALSE){
    
+   require(splines)
+   
+   
    # Prepare training data ---------------------------------------------------
    
    # Extract training data
    train <- readRDS(data_train) %>% 
       filter(!is.na(height)) %>% 
-      rename(elev = srtm0,
-             rugg = vrm3,
-             dist_slp = dist_slp_m) %>% 
       mutate(log_dist_col = log(dist_col),
              log_dist_col_any = log(dist_col_any),
              log_dist_sfs = log(dist_sfs),
-             log_dist_slp = log(dist_slp),
-             risk = if_else(height > 300, 0, 1)) %>% 
+             log_dist_slp = log(dist_slp)) %>% 
+      # Create a variable that is one if the bird is flying at rotor height and
+      # zero otherwise
+      mutate(risk = if_else(height > 300, 0, 1)) %>% 
+      # make a lagged risk variable
       group_by(bird_id) %>% 
       mutate(risk_t1 = lag(risk)) %>% 
       ungroup() %>% 
-      # Numeric resolution variable
-      mutate(res = as.numeric(str_remove(res_fct, "res_"))) %>% 
+      # We also define a variable phi that takes on the values:
+      # 1 if risk_t1 = 1 and -1 if risk_t1 = 0. This will be used
+      # to define the autocorrelation function
+      mutate(phi = if_else(risk_t1 == 1, 1, -1),
+             # We also need a numeric resolution variable
+             res = as.numeric(str_remove(res_fct, "res_"))) %>% 
+      # Recalculate dt
+      group_by(bird_id) %>% 
+      mutate(dt = as.numeric(difftime(datetime, lag(datetime), units = "hours"))) %>% 
+      ungroup() %>% 
+      # We further set risk_t1 = 0, phi = 0 and dt = 100 for the first values of each bird
+      # so that autocorrelation does not come into the equation
+      mutate(risk_t1 = if_else(is.na(dt), 0, risk_t1),
+             phi = if_else(is.na(dt), 0, phi),
+             dt = if_else(is.na(dt), 100, dt),
+             # Also the autocorrelation should be reduced with time therefore we set
+             # an exponential decay with dt
+             phi = phi * exp(-dt)) %>% 
       # Define CV groups
       group_by(age_fct, zone_fct) %>% 
       mutate(cv_group = cur_group_id()) %>% 
@@ -43,27 +62,8 @@ fitCVheight <- function(data_train = "data/working/data_height_ready.rds", data_
    
    # Fit model ---------------------------------------------------------------
    
-   # Specify model
-   height_model <- glmmTMB(model, family = binomial, data = train, doFit = FALSE)
-   
-   # Set random effects
-   nrm <- length(height_model$parameters$theta)
-   str_theta <- height_model$parameters$theta
-   
-   # Define starting values
-   ini_val <- list(beta = height_model$parameters$beta,
-                   theta = str_theta)
-   
-   # remove names just in case
-   ini_val <- lapply(ini_val, unname)
-   
-   # Try to fit model
-   rm(height_model) # to free memory
-   height_fit <- NULL
-   
    try({
-      height_fit <- glmmTMB(model, family = binomial, data = train,
-                            start = ini_val)
+      height_fit <- glmmTMB(model, family = binomial, data = train)
    })
    
    
@@ -71,36 +71,53 @@ fitCVheight <- function(data_train = "data/working/data_height_ready.rds", data_
    
    # Extract test data
    test <- readRDS(data_test) %>% 
+      readRDS(data_train) %>% 
       filter(!is.na(height)) %>% 
-      rename(elev = srtm0,
-             rugg = vrm3,
-             dist_slp = dist_slp_m) %>% 
       mutate(log_dist_col = log(dist_col),
              log_dist_col_any = log(dist_col_any),
              log_dist_sfs = log(dist_sfs),
-             log_dist_slp = log(dist_slp),
-             risk = if_else(height > 300, 0, 1)) %>% 
+             log_dist_slp = log(dist_slp)) %>% 
+      # Create a variable that is one if the bird is flying at rotor height and
+      # zero otherwise
+      mutate(risk = if_else(height > 300, 0, 1)) %>% 
+      # make a lagged risk variable
       group_by(bird_id) %>% 
-      mutate(risk_t1 = 0) %>% 
+      mutate(risk_t1 = lag(risk)) %>% 
       ungroup() %>% 
-      # Numeric resolution variable
-      mutate(res = as.numeric(str_remove(res_fct, "res_"))) %>% 
+      # We also define a variable phi that takes on the values:
+      # 1 if risk_t1 = 1 and -1 if risk_t1 = 0. This will be used
+      # to define the autocorrelation function
+      mutate(phi = if_else(risk_t1 == 1, 1, -1),
+             # We also need a numeric resolution variable
+             res = as.numeric(str_remove(res_fct, "res_"))) %>% 
+      # Recalculate dt
+      group_by(bird_id) %>% 
+      mutate(dt = as.numeric(difftime(datetime, lag(datetime), units = "hours"))) %>% 
+      ungroup() %>% 
+      # We further set risk_t1 = 0, phi = 0 and dt = 100 for the first values of each bird
+      # so that autocorrelation does not come into the equation
+      mutate(risk_t1 = if_else(is.na(dt), 0, risk_t1),
+             phi = if_else(is.na(dt), 0, phi),
+             dt = if_else(is.na(dt), 100, dt),
+             # Also the autocorrelation should be reduced with time therefore we set
+             # an exponential decay with dt
+             phi = phi * exp(-dt)) %>% 
       # Define CV groups
       group_by(age_fct, zone_fct) %>% 
       mutate(cv_group = cur_group_id()) %>% 
       ungroup() %>% 
       mutate(cv_id = paste(bird_id, cv_group, sep = "_")) %>% 
       # Keep only training CV groups
-      filter(cv_id %in% test_ids)
+      filter(!cv_id %in% test_ids)
    
    # To reduce autocorrelation in the validation set, we sample a number of steps to validate on
-   set.seed(1283764)
-
-   test <- test %>% 
-      group_by(bird_id) %>% 
-      add_tally() %>% 
-      sample_n(size = if_else(n > 500, 500L, n)) %>% 
-      ungroup()
+   # set.seed(1283764)
+   # 
+   # test <- test %>% 
+   #    group_by(bird_id) %>% 
+   #    add_tally() %>% 
+   #    sample_n(size = if_else(n > 500, 500L, n)) %>% 
+   #    ungroup()
    
    # Extract variables needed for the model
    vv <- all.vars(model)

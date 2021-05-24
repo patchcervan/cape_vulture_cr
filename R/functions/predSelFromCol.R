@@ -1,5 +1,5 @@
 predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
-                           colony_all = colony_all, sfs = sfs){
+                           colony_all = colony_all, sfs = sfs, se = FALSE, rasterdir){
    
    # Load necessary covariates (REVIEW IF NECESSARY) -------------------------
    
@@ -46,7 +46,7 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
    # What rasters do we need? We don't paste land use because it is a single raster
    toload <- paste(rcovts, map_code, sep = "_")
    
-   temp_covts <- list.files("output/pred_rasters/temp_covts")
+   temp_covts <- list.files(paste0(rasterdir, "temp_covts"))
    
    # Run the following only if it has not been ran before
    if(!any(str_detect(temp_covts, map_code))){
@@ -120,7 +120,7 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
       rm(rdist_sfs)
       
       # AT THIS POINT I CAN SAVE THE RASTER STACK FOR USING IN OTHER COLONIES
-      writeRaster(rr, paste0("output/pred_rasters/temp_covts/covts_", map_code, ".grd"),
+      writeRaster(rr, paste0(rasterdir, "temp_covts/covts_", map_code, ".grd"),
                   format = "raster", overwrite = T)
       
    } else {
@@ -128,7 +128,7 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
       print(paste("loading", map_code, "from disk"))
       
       # Read covariates stack from disk
-      rr <- stack(paste0("output/pred_rasters/temp_covts/covts_", map_code, ".grd"))
+      rr <- stack(paste0(rasterdir, "temp_covts/covts_", map_code, ".grd"))
       
       # Create a matrix of coordinates from one of the rasters in the stack
       temp <- rr[[1]] %>% 
@@ -208,7 +208,7 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
    rr <- rr[[1]]
    
    # Add and modify variables necessary to predict from model
-   vv
+   vv <- all.vars(model$call$formula)
    names(rr_df)
    
    names(rr_df)[str_detect(names(rr_df), "srtm")] <- "elev"
@@ -217,7 +217,9 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
    names(rr_df)[str_detect(names(rr_df), "land_cover")] <- "land_cover"
    
    rr_df <- rr_df %>% 
-      mutate(case = 1, sl_ = 0, res = 0, ttnoon = 0, ttnoon_sq = 0,
+      mutate(case = 1, 
+             log_dist_col = log(dist_col),
+             sl_ = 0, res = 0, ttnoon = 0, ttnoon_sq = 0,
              bird_id = "pred_id", step_id_ = "pred_step",
              subad = if_else(age == "subad", 1, 0),
              juv = if_else(age == "juv", 1, 0), 
@@ -262,17 +264,35 @@ predSelFromCol <- function(map_code, colony, model, age, covts, output_res,
    rm(dist, sc_vars, temp, sds) # To save memory
    gc(verbose = F)
    
-   pred_sel <- predict(model, newdata = rr_df, se.fit = F, re.form = NA, allow.new.levels = T)
-   
-   rr_df$pred_sel <- pred_sel
+   if(se == TRUE){
+      pred_sel <- predict(model, newdata = rr_df, se.fit = T, re.form = NA, allow.new.levels = T)
+      rr_df$pred_sel <- pred_sel$fit
+      rr_df$se_sel <- pred_sel$se.fit
+      
+      # put standard errors in a raster
+      r_se <- rr
+      r_se <- setValues(r_se, pred_sel$se.fit)
+      names(r_se) <- "std_err"
+      
+      # Save raster
+      exportname <- paste0(rasterdir, "1_pred_map_col/sel_SE_", age, "_",  map_code,
+                           "_", colony$id, ".tif")
+      
+      writeRaster(r_se, filename = exportname, overwrite = TRUE)
+      
+   } else {
+      pred_sel <- predict(model, newdata = rr_df, se.fit = F, re.form = NA, allow.new.levels = T)
+      rr_df$pred_sel <- pred_sel
+      rr_df$se_sel <- NA
+   }
    
    # Put results in a raster
    r_sel <- rr
-   r_sel <- setValues(r_sel, exp(2*pred_sel))
+   r_sel <- setValues(r_sel, exp(2*rr_df$pred_sel))
    names(r_sel) <- "pred_sel"
    
    # Save raster
-   exportname <- paste0("output/pred_rasters/1_pred_map_col/sel_", age, "_",  map_code,
+   exportname <- paste0(rasterdir, "1_pred_map_col/sel_", age, "_",  map_code,
                         "_", colony$id, ".tif")
    
    writeRaster(r_sel, filename = exportname, overwrite = TRUE)

@@ -54,26 +54,24 @@ Type objective_function<Type>::operator() ()
    DATA_IVECTOR(group);    // indicator for individual group
    
    // For one-step-ahead residuals
-   // DATA_VECTOR_INDICATOR(keep, z);
+   DATA_VECTOR_INDICATOR(keep, z);
    
    // PARAMETERS
-   PARAMETER_VECTOR(tmu_alpha);      // mean effect of covariates on mean altitude
+   PARAMETER_VECTOR(mu_alpha);      // mean effect of covariates on mean altitude
    PARAMETER_VECTOR(lsig_alpha);    // sd of effect of covariates on mean altitude
-   PARAMETER_MATRIX(delta_alpha);   // deviations from the mean effects on mean altitude for individuals
    PARAMETER(mu_lsig_err);
    PARAMETER(sig_lsig_err);
-   PARAMETER_VECTOR(delta_lsig_err);
    PARAMETER(lsigma);               // process variance
    PARAMETER(lbeta);                // process autocorrelation
+   PARAMETER_MATRIX(delta_alpha);   // deviations from the mean effects on mean altitude for individuals
+   PARAMETER_VECTOR(delta_lsig_err);
    PARAMETER_VECTOR(ztrans);        // transformed process
    //PARAMETER_VECTOR(mu0);
    // PARAMETER(df_raw);
    
    // TRANSFORMED PARAMETERS
-   vector<Type> mu_alpha(K);      // transformation of mean effect of covariates on mean altitude
    matrix<Type> alpha(J,K);
    vector<Type> sig_alpha = exp(lsig_alpha);
-   
    Type beta = exp(lbeta);
    Type beta_sq = pow(beta, Type(2.0));
    Type sigma = exp(lsigma);
@@ -86,15 +84,6 @@ Type objective_function<Type>::operator() ()
    
    // latent states
    vector<Type> zlat = invLink(ztrans, B) ;               // back transform flight height into R+
-   
-   // Pre-calculate correlations
-   // vector<Type> phi = exp(-beta*dtime);
-   
-   // Make intercept positive
-   mu_alpha(0) = exp(tmu_alpha(0));
-   for(int k=1; k < K; k++){
-      mu_alpha(k) = tmu_alpha(k);
-   }
    
    for(int j = 0; j < J; j++){
 
@@ -124,14 +113,6 @@ Type objective_function<Type>::operator() ()
    parallel_accumulator<Type> nll(this);
    
    // Random effects likelihood
-   // for(int j=0; j < J; j++){
-   //    for(int k=0; k < K; k++){
-   //       nll -= dnorm(alpha(j,k), mu_alpha(k), sig_alpha(k), true);
-   //    }
-   //    for(int l=0; l < L; l++){
-   //       nll -= dnorm(gamma(j,l), mu_gamma(l), sig_gamma(l), true);
-   //    }
-   // }
    
    for(int j=0; j < J; j++){
       for(int k=0; k < K; k++){
@@ -140,6 +121,7 @@ Type objective_function<Type>::operator() ()
       nll -= dnorm(delta_lsig_err(j), Type(0.0), Type(1.0), true);
    }
 
+   
    // PROCESS MODEL
    
    int t = -1;       // Initialize time
@@ -157,45 +139,46 @@ Type objective_function<Type>::operator() ()
          nll -= nll_OU(ztrans(t), ztrans(t-1), dtime(t-j-1), beta, mu_t(t), sigma_sq);
          
          // Simulation block for process model
-         // SIMULATE {
-         //    ztrans(t) = rnorm(ztrans(t-1)*phi(t-j-1) + mu_t(t-j-1)*(Type(1.0) - phi(t-j-1)),
-         //           pow(sigma_sq/(Type(2.0)*beta) * (Type(1.0) - pow(phi(t-j-1), Type(2.0))), Type(0.5)));
-         //    zlat(t) = (ztrans(t) >= B)*ztrans(t) + (ztrans(t) < B)*(B*tanh(ztrans(t)/B-1) + B);
-         // }
+         SIMULATE {
+            Type Ex = ztrans(t-1)*exp(-beta*dtime(t-j-1)) + mu_t(t)*(Type(1.0) - exp(-beta*dtime(t-j-1))) ;
+            Type Vx = pow(sigma_sq/(Type(2.0)*beta) * (Type(1.0) - exp(-Type(2.0)*beta*dtime(t-j-1))), Type(0.5));
+
+            ztrans(t) = rnorm(Ex, Vx);
+            zlat(t) = (ztrans(t) >= B)*ztrans(t) + (ztrans(t) < B)*(B*tanh(ztrans(t)/B-1) + B);
+         }
+         
          
          // OBSERVATION MODEL
          
-         // nll -= keep(i)*dt((z(i) - zlat(i+1))/sig_err(i), df, true);
-         // nll -= keep(t-j-1)*dnorm(z(t-j-1), zlat(t), sig_err(t-j-1), true);
-         nll -= dnorm(z(t-j-1), zlat(t), sig_err(j), true);
+         nll -= keep(t-j-1)*dnorm(z(t-j-1), zlat(t), sig_err(j), true);
          
          // Simulation block for observation model
-         // SIMULATE {
-         //    z(i) = rnorm(zlat(i+1), sig_err(i));
-         // }
+         SIMULATE {
+            z(t-j-1) = rnorm(zlat(t), sig_err(j));
+         }
          
       }
    }
    
 
    // REPORTS
+   ADREPORT(zlat);
+   REPORT(zlat);
    // ADREPORT(beta);
    // REPORT(beta);
    // ADREPORT(alpha);
    // REPORT(alpha);
    // ADREPORT(gamma);
    // REPORT(gamma);
-   // ADREPORT(zlat);
-   // REPORT(zlat);
    // ADREPORT(df);
    // REPORT(df);
    
-   // // Report simulated values
-   // SIMULATE{
-   //    REPORT(ztrans);
-   //    REPORT(zlat);
-   //    // REPORT(z);
-   // }
+   // Report simulated values
+   SIMULATE{
+      REPORT(ztrans);
+      REPORT(zlat);
+   //    REPORT(z);
+   }
    
    return nll;
    

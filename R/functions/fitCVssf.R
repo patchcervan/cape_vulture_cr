@@ -1,7 +1,9 @@
 fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data = "data/working/data_ssf_test.rds",
-                     test_ids, model, save_fit = FALSE, output_file = NULL){
+                     test_ids, model, save_fit = FALSE, output_file = NULL, seed = NULL){
    
-   # train_data = "data/working/data_ssf_ready.rds"; test_data = "data/working/data_ssf_test.rds"; test_ids = cv_ids[[1]]; model = models[[1]]
+   # train_data = "data/working/data_ssf_ready.rds"; test_data = "data/working/data_ssf_test.rds"; test_ids = cv_ids[[1]]; model = models[[2]]
+   
+   require(splines)
    
    # Prepare training data ---------------------------------------------------
    
@@ -9,17 +11,14 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
    train <- readRDS(train_data) %>% 
       mutate(id = row_number(),
              step_id_ = paste(bird_id, step_id_, sep = "_")) %>% 
-      rename(elev = srtm0,
-             rugg = vrm3,
-             dist_slp = dist_slp_m) %>% 
+      # Numeric resolution variable
+      mutate(res = as.numeric(str_remove(res_fct, "res_"))) %>% 
+      # Numeric response variable
+      mutate(case = if_else(case_ == TRUE, 1, 0)) %>% 
       mutate(log_dist_col = log(dist_col),
              log_dist_col_any = log(dist_col_any),
              log_dist_sfs = log(dist_sfs),
              log_dist_slp = log(dist_slp)) %>% 
-      # Numeric response variable
-      mutate(case = if_else(case_ == TRUE, 1, 0)) %>% 
-      # Numeric resolution variable
-      mutate(res = as.numeric(str_remove(res_fct, "res_"))) %>% 
       # Define CV groups
       group_by(age_fct, zone_fct) %>% 
       mutate(cv_group = cur_group_id()) %>% 
@@ -76,16 +75,19 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
    
    # Save fit
    if(!(is.null(ssf_fit)) & isTRUE(save_fit)){
-      saveRDS(ssf_fit, file = output_file)
+      saveRDS(fixef(ssf_fit), file = output_file)
    }
+   
+   # ssf_fit <- readRDS("hpc/output/ssf_fit_test1_mod2.rds")
    
    # Predict for the test groups ---------------------------------------------
    
    # Extract test data
-   test <- readRDS(test_data) %>% 
-      rename(elev = srtm0,
-              rugg = vrm3,
-              dist_slp = dist_slp_m) %>% 
+   test <- readRDS(test_data) %>%
+      mutate(id = row_number(),
+             step_id_ = paste(bird_id, step_id_, sep = "_")) %>% 
+      # Numeric resolution variable
+      mutate(res = as.numeric(str_remove(res_fct, "res_"))) %>% 
       mutate(dist_col = as.numeric(dist_col),
              log_dist_col = log(dist_col),
              log_dist_col_any = log(dist_col_any),
@@ -102,7 +104,10 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
       filter(cv_id %in% test_ids)
    
    # To give more or less the same weight to each test bird we sample a number of steps to validate on
-   set.seed(1283764)
+   if(!is.null(seed)){
+      set.seed(seed)
+   }
+   
    test_steps <- test %>% 
       group_by(cv_id) %>% 
       mutate(n_steps = n_distinct(step_id_)) %>% 
@@ -120,7 +125,12 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
    vv <- all.vars(model)
    
    test <- test %>% 
-      mutate(sl_ = 0, ttnoon = 0, ttnoon_sq = 0, res = 0, step_id_ = "new_step") %>% 
+      mutate(#hourday = lubridate::hour(t1_),
+             #ttnoon = hourday - 10,
+             #ttnoon_sq = (ttnoon)^2,
+             #res = 8,
+             step_id_ = "new_step") %>% 
+      # mutate(sl_ = 0, ttnoon = 0, ttnoon_sq = 0, res = 0, step_id_ = "new_step") %>% 
       dplyr::select(all_of(vv), cv_id) %>% 
       filter(complete.cases(.))
    
@@ -138,8 +148,8 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
                  sc_vars)
    
    # Make step length zero to remove any effects of movement
-   test <- test %>%
-      mutate(sl_ = 0)
+   # test <- test %>%
+   #    mutate(sl_ = 0)
    
    # If model wasn't fit
    out <- tibble(mod = attr(model, "model"),
@@ -162,7 +172,7 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
       
          pred_df <- test %>% 
             dplyr::select(bird_id, cv_id, case) %>% 
-            mutate(pred = exp(2*pred_out)) %>% 
+            mutate(pred = exp(pred_out)) %>% 
             group_by(cv_id) %>% 
             mutate(denom = sum(pred),
                    sel = pred / denom) %>% 
@@ -171,8 +181,8 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
          # Categorize selection
          nbreaks <- 10
          pred_df <- pred_df %>%
-            group_by(cv_id) %>% 
-            mutate(sel_fct = cut(sel, breaks = quantile(pred_df$sel, seq(0, 1, 1/nbreaks), na.rm = TRUE),
+            group_by(cv_id) %>%
+            mutate(sel_fct = cut(sel, breaks = quantile(sel, seq(0, 1, 1/nbreaks), na.rm = TRUE),
                                  labels = 1:nbreaks, include.lowest = T)) %>% 
             ungroup()
          
@@ -188,16 +198,16 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
          #    as.numeric() %>%
          #    hist()
          # 
-         # pred_df %>% 
-         #    group_by(sel_fct, cv_id, case) %>% 
-         #    summarize(count = n()) %>% 
-         #    ungroup(case) %>% 
+         # pred_df %>%
+         #    group_by(sel_fct, cv_id, case) %>%
+         #    summarize(count = n()) %>%
+         #    ungroup(case) %>%
          #    mutate(total = sum(count),
-         #           freq = count/total) %>% 
-         #    filter(case == 1) %>% 
-         #    group_by(cv_id) %>% 
-         #    summarize(cv_pi = cor(as.numeric(sel_fct), freq, method = "spearman")) %>% 
-         #    print(n = Inf) %>% 
+         #           freq = count/total) %>%
+         #    filter(case == 1) %>%
+         #    group_by(cv_id) %>%
+         #    summarize(cv_pi = cor(as.numeric(sel_fct), freq, method = "spearman")) %>%
+         #    print(n = Inf) %>%
          #    summarize(avg_cv_pi = mean(cv_pi))
             
          

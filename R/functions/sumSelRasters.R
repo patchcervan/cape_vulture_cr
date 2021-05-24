@@ -6,6 +6,9 @@ sumSelRasters <- function(col_to_pred, raster_dir, raster_id, age, scale_sel = F
    # Extract raster of the desired age
    rfiles <- rfiles[str_detect(rfiles, age)]
    
+   # Identify all rasters with the correct id
+   r_id_files <- rfiles[str_detect(rfiles, raster_id)]
+   
    # Define scale factor for counts if necessary
    if(isTRUE(scale_sel)){
       count_var <- paste0("avg_", age)
@@ -13,9 +16,6 @@ sumSelRasters <- function(col_to_pred, raster_dir, raster_id, age, scale_sel = F
    } else {
       counts <- rep(1, nrow(col_to_pred))
    }
-   
-   # Identify all rasters with the correct id
-   r_id_files <- rfiles[str_detect(rfiles, raster_id)]
    
    # Select first colony
    col_sel <- col_to_pred$id[1]

@@ -59,12 +59,12 @@ Type objective_function<Type>::operator() ()
    // DATA_VECTOR_INDICATOR(keep, z);
    
    // PARAMETERS
-   PARAMETER_VECTOR(mu_alpha);      // mean effect of covariates on mean altitude
+   PARAMETER_VECTOR(tmu_alpha);      // mean effect of covariates on mean altitude
    PARAMETER_VECTOR(mu_gamma);      // mean effect of covariates on error variance
    PARAMETER_VECTOR(lsig_alpha);    // sd of effect of covariates on mean altitude
    PARAMETER_VECTOR(lsig_gamma);    // sd of effect of covariates on error variance
-   PARAMETER_MATRIX(alpha);   // deviations from the mean effects on mean altitude for individuals
-   PARAMETER_MATRIX(gamma);   // deviations from the mean effects on error variance for individuals 
+   PARAMETER_MATRIX(delta_alpha);   // deviations from the mean effects on mean altitude for individuals
+   PARAMETER_MATRIX(delta_gamma);   // deviations from the mean effects on error variance for individuals 
    PARAMETER(lsigma);               // process variance
    PARAMETER(lbeta);                // process autocorrelation
    PARAMETER_VECTOR(ztrans);        // transformed process
@@ -72,8 +72,9 @@ Type objective_function<Type>::operator() ()
    // PARAMETER(df_raw);
    
    // TRANSFORMED PARAMETERS
-   // matrix<Type> alpha(J,K);
-   // matrix<Type> gamma(J,L);
+   vector<Type> mu_alpha(K);      // transformation of mean effect of covariates on mean altitude
+   matrix<Type> alpha(J,K);
+   matrix<Type> gamma(J,L);
    vector<Type> sig_alpha = exp(lsig_alpha);
    vector<Type> sig_gamma = exp(lsig_gamma);
    Type beta = exp(lbeta);
@@ -92,17 +93,22 @@ Type objective_function<Type>::operator() ()
    // Pre-calculate correlations
    // vector<Type> phi = exp(-beta*dtime);
    
+   // Make intercept positive
+   mu_alpha(0) = exp(tmu_alpha(0));
+   for(int k=1; k < K; k++){
+      mu_alpha(k) = tmu_alpha(k);
+   }
    
-   // for(int j = 0; j < J; j++){
-   //    
-   //    for(int k = 0; k < K; k++){
-   //       alpha(j,k) = mu_alpha(k) + sig_alpha(k) * delta_alpha(j,k);
-   //       }
-   //    for(int l = 0; l < L; l++){
-   //       gamma(j,l) = mu_gamma(l) + sig_gamma(l) * delta_gamma(j,l);
-   //    }
-   //    
-   // }
+   for(int j = 0; j < J; j++){
+
+      for(int k = 0; k < K; k++){
+         alpha(j,k) = mu_alpha(k) + sig_alpha(k) * delta_alpha(j,k);
+         }
+      for(int l = 0; l < L; l++){
+         gamma(j,l) = mu_gamma(l) + sig_gamma(l) * delta_gamma(j,l);
+      }
+
+   }
    
 
    for(int i = 0; i < N; i++){
@@ -125,12 +131,21 @@ Type objective_function<Type>::operator() ()
    parallel_accumulator<Type> nll(this);
    
    // Random effects likelihood
+   // for(int j=0; j < J; j++){
+   //    for(int k=0; k < K; k++){
+   //       nll -= dnorm(alpha(j,k), mu_alpha(k), sig_alpha(k), true);
+   //    }
+   //    for(int l=0; l < L; l++){
+   //       nll -= dnorm(gamma(j,l), mu_gamma(l), sig_gamma(l), true);
+   //    }
+   // }
+   
    for(int j=0; j < J; j++){
       for(int k=0; k < K; k++){
-         nll -= dnorm(alpha(j,k), mu_alpha(k), sig_alpha(k), true);
+         nll -= dnorm(delta_alpha(j,k), Type(0.0), Type(1.0), true);
       }
       for(int l=0; l < L; l++){
-         nll -= dnorm(gamma(j,l), mu_gamma(l), sig_gamma(l), true);
+         nll -= dnorm(delta_gamma(j,l), Type(0.0), Type(1.0), true);
       }
    }
 
@@ -173,14 +188,14 @@ Type objective_function<Type>::operator() ()
    
 
    // REPORTS
-   ADREPORT(beta);
-   REPORT(beta);
-   ADREPORT(alpha);
-   REPORT(alpha);
-   ADREPORT(gamma);
-   REPORT(gamma);
-   ADREPORT(zlat);
-   REPORT(zlat);
+   // ADREPORT(beta);
+   // REPORT(beta);
+   // ADREPORT(alpha);
+   // REPORT(alpha);
+   // ADREPORT(gamma);
+   // REPORT(gamma);
+   // ADREPORT(zlat);
+   // REPORT(zlat);
    // ADREPORT(df);
    // REPORT(df);
    
