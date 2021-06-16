@@ -50,13 +50,18 @@ extractCovt <- function(x, loadCovtsPath = "R/functions/loadCovtsRasters.R",
         
         ex <- extent(rr[[j]])
         
-        keep <- which(cc[,1] >= ex[1] & cc[,1] <= ex[2] &
+        keep <- (cc[,1] >= ex[1] & cc[,1] <= ex[2] &
                           cc[,2] >= ex[3] & cc[,2] <= ex[4])
         
         subcc <- cc[keep,, drop = F]
         
         # Extract covariates
         covts <- raster::extract(rr[[j]], subcc)
+        
+        if(length(covts) < 1){
+            warning("From extractCovt: no points in extent. Check that no points are missing covariates")
+            next
+        }
         
         # Add to data frame
         x[keep, var_names] <- covts
