@@ -11,7 +11,7 @@ library(sf)
 
 # Read in data ------------------------------------------------------------
 
-col1 <- read_csv("data/raw/colony_data/ewt_cv_colonies_20200601.csv")
+col1 <- read_csv("data/raw/colony_data/colonies_EWT/ewt_cv_colonies_20200601.csv")
 col2 <- read_csv("data/raw/colony_data/ez_cv_nests_roosts_Oct2020.csv")
 
 
@@ -70,7 +70,7 @@ col2 <- st_as_sf(col2, coords = c("X_COORDp", "Y_COORDp"), crs = 4326, remove = 
 # Make buffer of 500 m around colonies in first data set
 col1buf500 <- st_buffer(col1, dist = 0.005)
 
-# Find colonies in the second data set that overlap the 1km buffer
+# Find colonies in the second data set that overlap the 500m buffer
 col2_int <- st_intersection(col2, col1buf500)
 
 col2_int %>% 
