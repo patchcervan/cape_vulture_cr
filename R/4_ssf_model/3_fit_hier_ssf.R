@@ -11,18 +11,12 @@ library(glmmTMB)
 # Load data ---------------------------------------------------------------
 
 # Vulture data
-vults <- readRDS("data/working/data_ssf_ready.rds")
+vults <- readRDS("data/working/data_ssf_ready_7pp.rds")
 
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%
     mutate(id = row_number(),
            step_id_ = paste(bird_id, step_id_, sep = "_"))
-
-# Change variable names to make them more readable
-# vults <- vults %>%
-#     rename(slope = res01_slope)
-#            rugg = vrm3,
-#            dist_slp = dist_slp_m)
 
 # Add log of distances since the effect probably saturates
 vults <- vults %>% 
@@ -38,6 +32,10 @@ vults <- vults %>%
 # We also need a numeric resolution variable
 vults <- mutate(vults,
                 res = as.numeric(str_remove(res_fct, "res_")))
+
+# Remove values with missing topography ("out of map")
+vults <- vults %>% 
+    filter(!is.na(elev))
 
 
 # Define models to compare ------------------------------------------------
@@ -227,24 +225,24 @@ ssf_fit_rm <- glmmTMB(model, family = poisson, data = vults,
                       #                          optArgs=list(method="BFGS"))
 )
 
-saveRDS(ssf_fit_rm, "output/ssf_fit_rm.rds")
+saveRDS(ssf_fit_rm, "output/ssf_fit_7pp.rds")
 
 
 # Explore results ---------------------------------------------------------
 
-ssf_fit_rm <- readRDS("output/ssf_fit_rm.rds")
-ssf_fit_summ <- summary(ssf_fit_rm)
-
-saveRDS(ssf_fit_summ, "output/ssf_fit_summ_mod11.rds")
-
-mod_sum <- readRDS("output/ssf_fit_summ_mod11.rds")
-mod_sum
-
-mod_sum <- c(mod_sum, mod25a_habclass = summary(ssf_fit_rm))
-
-write_rds(mod_sum, "data/working/model_summ.rds")
-
-VarCorr(ssf_fit_rm)
-
-# Standard errors for fixed and random effects
-ssf_fit_rm$sdr
+# ssf_fit_rm <- readRDS("output/ssf_fit_7pp.rds")
+# ssf_fit_summ <- summary(ssf_fit_rm)
+# 
+# saveRDS(ssf_fit_summ, "output/ssf_fit_summ_7pp.rds")
+# 
+# mod_sum <- readRDS("output/ssf_fit_summ_7pp.rds")
+# mod_sum
+# 
+# mod_sum <- c(mod_sum, mod25a_habclass = summary(ssf_fit_rm))
+# 
+# write_rds(mod_sum, "data/working/model_summ.rds")
+# 
+# VarCorr(ssf_fit_rm)
+# 
+# # Standard errors for fixed and random effects
+# ssf_fit_rm$sdr
