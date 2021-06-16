@@ -1,7 +1,6 @@
-# 23-02-2021
+# 20-01-2021
 
-# In this script we regularize tracking data to prepare a test data set for the
-# step selection function model
+# In this script we regularize tracking data to fit a step selection function model
 
 rm(list = ls())
 
@@ -12,6 +11,7 @@ library(lubridate)
 library(furrr)
 library(Rcpp)
 
+sf_use_s2(FALSE) # s2 throws error when intersecting protected areas
 
 # Read in data ------------------------------------------------------------
 
@@ -25,7 +25,7 @@ bird_db <- read_csv("data/working/bird_db_fit_ready.csv")
 colony_db <- read_csv("data/working/colony_db.csv")
 
 # Read in roost and colony data
-colony_orig <- read_csv("data/working/colony_data_all_upt.csv")
+colony_orig <- read_csv("data/working/colony_all_w_da.csv")
 
 # Extract roosts and fix names
 roost <- colony_orig %>% 
@@ -84,48 +84,73 @@ for(i in 1:length(trk_files)){
    trk_sel <- trk_sel %>% 
       mutate(age = if_else(age == "subad", "juv", age))
    
-   # Define the variables that we will use
-   trk_sel <- trk_sel %>% 
-      dplyr::select(1:19)
-   
    # Define tracking resolution (sampling rate) and tolerance in hours and minutes respectively
-   # We set a very coarse resolution for the validation set to avoid autocorrelation
    trk_res <- case_when(id_sel == "ez02" ~ 24,
-                        TRUE ~ 8)
+                        id_sel == "ez05" ~ 8,
+                        id_sel == "kr01" ~ 2,
+                        id_sel == "ma07" ~ 3,
+                        id_sel %in% c("mt01", "mt02", "na07", "na08", "na09") ~ 2,
+                        id_sel %in% c("wt01", "wt02", "wt03", "wt17", "wt18", "wt20", "wt21") ~ 4,
+                        id_sel %in% c("wt04", "wt06", "wt07", "wt08", "wt09", "wt10", "wt12", "wt13", "wt14", "wt15") ~ 24,
+                        TRUE ~ 1)
    
    trk_tol <- case_when(id_sel == "ez02" ~ 120,
-                        TRUE ~ 40)
-   trk_tol <- 120
+                        id_sel == "ez05" ~ 40,
+                        id_sel == "kr01" ~ 15,
+                        id_sel == "ma07" ~ 20,
+                        id_sel %in% c("mt01", "mt02", "na07", "na08", "na09") ~ 15,
+                        id_sel %in% c("wt01", "wt02", "wt03", "wt17", "wt18", "wt20", "wt21") ~ 20,
+                        id_sel %in% c("wt04", "wt06", "wt07", "wt08", "wt09", "wt10", "wt12", "wt13", "wt14", "wt15") ~ 120,
+                        TRUE ~ 10)
    
    # Make amt object
    trk_xyt <- trk_sel %>% 
       make_track(lon, lat, datetime, all_cols = T, crs = CRS("+proj=longlat +datum=WGS84 +no_defs"))
    
-   # Resample
+   # Resample and keep only those bursts that allow step and angle calculation
    new_trk <- trk_xyt %>% 
-      track_resample(rate = hours(trk_res), tolerance = minutes(trk_tol))
+      track_resample(rate = hours(trk_res), tolerance = minutes(trk_tol)) %>% 
+      filter_min_n_burst(min_n = 3)
    
-   # Create a step id variable
-   new_trk <- new_trk %>% 
-      mutate(step_id_ = row_number())
+   # Basic checks
+   print(any(duplicated(new_trk$t_)))
    
-   unique(year(new_trk$t_))
+   # General map
+   new_trk %>%
+      mutate(year = year(t_)) %>% 
+      group_by(year) %>% 
+      ggplot() +
+      geom_sf(data = sa_map) +
+      geom_point(aes(x = x_, y = y_), alpha = 0.2) +
+      facet_wrap(~year)
    
-   # Define projected coordinate system
+   # Longitude - Latitude profiles
+   new_trk %>% 
+      dplyr::select(t_, x_, y_) %>% 
+      gather(dim, coord, -t_) %>% 
+      ggplot() +
+      geom_point(aes(x = t_, y = coord)) +
+      facet_wrap(~ dim, nrow = 2, scales = "free")
+   
+   
+   # Generate random steps --------------------------------------------------
+   
+   # Transform to projected coordinate system
    tmerproj <- makeTmerProj(st_as_sf(new_trk, coords = c("x_", "y_"), crs = 4326))
    
-   # # Produce random points by taking random distances and angles from the central colony
-   # use_rdm <- new_trk %>% 
-   #    steps(keep_cols = 'end') %>% 
-   #    random_steps(n_control = 10)
-
-   # At this point I need to save the attributes so that they are not lost later in the process
-   atts <- attributes(new_trk)
-   
-   # Nest by year
    new_trk <- new_trk %>% 
-      as.data.frame() %>% 
-      nest(data = -c(bird_id, year))
+      transform_coords(crs_to = tmerproj)
+   
+   # Create steps object
+   new_trk <- new_trk %>% 
+      dplyr::select(x_, y_, t_, bird_id, age, burst_) %>% 
+      steps_by_burst(keep_cols = 'end')
+   
+   use_rdm <- new_trk %>% 
+      random_steps(n_control = 7)
+   
+   # At this point I need to save the attributes so that they are not lost later in the process
+   atts <- attributes(use_rdm)
    
    
    # Find distance to colony -------------------------------------------------
@@ -138,84 +163,23 @@ for(i in 1:length(trk_files)){
       nest(data = -year)
    
    # Classify birds according to where their colony for the year is
-   new_trk <- new_trk %>% 
+   use_rdm <- use_rdm %>% 
+      mutate(year = lubridate::year(t2_)) %>% 
       left_join(dplyr::select(colony_db, bird_id, year, zone), by = c("bird_id", "year"))
    
    # filtering bursts might result in colony years and track years not matching
-   years <- unique(new_trk$year)
+   years <- unique(use_rdm$year)
    
    colony <- colony %>% 
       filter(year %in% years)
    
    # for each year's colony find distance to tracking locations
-   new_trk <- new_trk %>% 
-      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
-                           st_transform(crs = tmerproj))) 
-   
-   new_trk <- new_trk %>%
-      mutate(dist_col = future_map2(.$data, colony$data, ~as.numeric(st_distance(.x, .y))))
-   
-
-   # Produce available points ---------------------------------------------------
-
-   # Produce random points by taking random distances and angles from the central colony
-   # new_trk <- unnest(new_trk,  cols = c(-year))
-   
-   rdm <- vector("list", length = length(years))
-   
-   # Random distances per year
-   rdmdist <- new_trk$data %>% 
-      map2(new_trk$dist_col, ~runif(nrow(.x)*10, 0, max(.y)+1e5))
-   
-   # Random angles per year
-   rdmang <- new_trk$data %>% 
-      map(~runif(nrow(.x)*10, 0, 2*pi))
-   
-   cc_x <- rdmdist %>% 
-      map2(rdmang, ~.x*cos(.y)) %>% 
-      map2(colony$data, ~.x + st_coordinates(.y)[,1])
-   
-   cc_y <- rdmdist %>% 
-      map2(rdmang, ~.x*sin(.y)) %>% 
-      map2(colony$data, ~.x + st_coordinates(.y)[,2])
-   
-   # Unnest track
-   new_trk <- unnest(new_trk,  cols = c(-year))
-   
-   # Create random coordinates with the same characteristics as observed locations
-   use_rdm <- new_trk %>% 
-      st_as_sf() %>% 
-      st_drop_geometry() %>% 
-      slice(rep(1:n(), each = 10)) %>% 
-      mutate(x = do.call("c", cc_x),
-             y = do.call("c", cc_y)) %>% 
-      st_as_sf(coords = c("x", "y"), crs = tmerproj, remove = F) %>% 
-      st_transform(4326) %>% 
-      mutate(x_ = st_coordinates(.)[,1],
-             y_ = st_coordinates(.)[,2],
-             case_ = FALSE) %>% 
-      st_drop_geometry() %>% 
-      rbind(., new_trk %>% 
-               st_as_sf() %>% 
-               st_drop_geometry() %>% 
-               mutate(case_ = TRUE))
-   
-   
-   # Recalculate distance to colony ------------------------------------------
-   
-   # Nest by year
    use_rdm <- use_rdm %>% 
-      dplyr::select(-dist_col) %>% 
-      as.data.frame() %>% 
-      nest(data = -c(bird_id, year))
-   
-   # for each year's colony find distance to tracking locations
-   use_rdm <- use_rdm %>% 
-      mutate(data = map(.$data, ~st_as_sf(.x, coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
-                           st_transform(crs = tmerproj))) 
+      st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = F) %>% 
+      nest(data = -year)
    
    use_rdm <- use_rdm %>%
-      mutate(dist_col = future_map2(.$data, colony$data, ~as.numeric(st_distance(.x, .y))))
+      mutate(dist_col = future_map2(.$data, colony$data, ~st_distance(.x, .y)))
    
    
    # Find distance to any colony or roost ------------------------------------
@@ -229,18 +193,18 @@ for(i in 1:length(trk_files)){
       # add distance from central colony (for each year)
       future_map(~mutate(colony_orig,
                          dist_from_central = .x[1,])) %>% 
-      # remove those that are closer than 10km
+      # remove those that are closer than 5km
       future_map( ~filter(.x, as.numeric(dist_from_central) > 5e3))
    
    # For each year calculate distance between locations and any colony or roost
-   # considering only those selected roosts and colonies that are further than 10km
+   # considering only those selected roosts and colonies that are further than 5km
    # from central colony
    use_rdm <- use_rdm %>% 
       mutate(dist_col_any = future_map2(.$data, col_sel,
-                                        ~minDist_cpp(st_coordinates(.x),
+                                        ~minDist_cpp(st_coordinates(st_as_sf(.)),
                                                      st_coordinates(.y))))
    
-
+   
    # Find distance to restaurants --------------------------------------------
    
    # Unnest data
@@ -252,17 +216,15 @@ for(i in 1:length(trk_files)){
    
    # For each year calculate distance between locations and any sfs
    use_rdm <- use_rdm %>% 
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = F) %>% 
-      st_transform(tmerproj) %>% 
-      mutate(dist_sfs = minDist_cpp(st_coordinates(.), st_coordinates(sfs)))
+      mutate(dist_sfs = minDist_cpp(st_coordinates(st_as_sf(.)), st_coordinates(sfs)))
    
    
    # Extract covariates from rasters -----------------------------------------
-
+   
    # Recover spatial object and transform back to geographic coordinates
    use_rdm <- use_rdm %>% 
-      st_drop_geometry() %>% 
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = F)
+      st_as_sf() %>% 
+      st_transform(crs = 4326)
    
    # Nest and extract land use class for the different years
    use_rdm <- use_rdm  %>%
@@ -283,7 +245,8 @@ for(i in 1:length(trk_files)){
    
    # Nest and extract NDVI for the different years
    use_rdm <- use_rdm  %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = FALSE) %>% 
+      st_transform(crs = 4326) %>% 
       nest(data = -year) %>% 
       mutate(data = future_map2(.$data, .$year, ~ extractCovts(.x,
                                                                loadCovtsPath = "R/functions/loadCovtsRasters.R",
@@ -303,7 +266,8 @@ for(i in 1:length(trk_files)){
    
    # Extract topographical covariates
    use_rdm <- use_rdm %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>% 
+      st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = FALSE) %>% 
+      st_transform(crs = 4326) %>% 
       extractCovts(loadCovtsPath = "R/functions/loadCovtsRasters.R",
                    extractCovtPath = "R/functions/extractCovt.R",
                    covts_path = "data/working/covts_rasters/topo_res01",
@@ -315,7 +279,8 @@ for(i in 1:length(trk_files)){
    
    # Calculate intersection between locations and protected areas
    pa_int <- use_rdm %>%
-      st_as_sf(coords = c("x_", "y_"), crs = 4326, remove = FALSE) %>%
+      st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = FALSE) %>% 
+      st_transform(crs = 4326) %>%
       st_intersects(pa, sparse = FALSE)
    
    # Create a protected areas covariate
@@ -326,14 +291,52 @@ for(i in 1:length(trk_files)){
    rm(pa_int)
    
    
-   # Save bird --------------------------------------------------
+   # Create time of day variable ---------------------------------------------
+   
+   # Create log of step length and cosine of turning angle. These are used later in the mov. model
+   use_rdm <- use_rdm %>% 
+      mutate(hourday = lubridate::hour(t1_),
+             ttnoon = hourday - 10,
+             ttnoon_sq = (ttnoon)^2,
+             log_sl = if_else(sl_ > 0, log(sl_), log(min(.$sl_[.$sl_ >0]))), # Otherwise model complains about infinite predictor
+             cos_ta = cos(ta_))
+   
+   # Create also a time resolution variable
+   # Recalculate dt in hours
+   use_rdm <- use_rdm %>% 
+      mutate(dt_ = as.numeric(dt_, units = "hours"))
+   
+   meandt <- mean(use_rdm$dt_, na.rm = T)
+   
+   use_rdm <- use_rdm %>% 
+      mutate(res = case_when(meandt > 0.5 & meandt <= 1.5 ~ 1,
+                             meandt > 1.5 & meandt <= 2.5 ~ 2,
+                             meandt > 2.5 & meandt <= 3.5 ~ 3,
+                             meandt > 3.5 & meandt <= 5 ~ 4,
+                             meandt > 5 & meandt <= 12 ~ 8,
+                             TRUE ~ 24))
+   
+   # Add bird to data frame --------------------------------------------------
+   
+   # Recover latitude -longitude coordinates
+   use_rdm <- use_rdm %>% 
+         st_as_sf(coords = c("x1_", "y1_"), crs = tmerproj, remove = F) %>% 
+         st_transform(crs = 4326) %>% 
+         mutate(lon1_ = st_coordinates(.)[,1],
+                lat1_ = st_coordinates(.)[,2]) %>% 
+         st_drop_geometry() %>% 
+         st_as_sf(coords = c("x2_", "y2_"), crs = tmerproj, remove = F) %>% 
+         st_transform(crs = 4326) %>% 
+         mutate(lon2_ = st_coordinates(.)[,1],
+                lat2_ = st_coordinates(.)[,2]) %>% 
+         st_drop_geometry()
    
    # Recover attributes (e.g. step-length and angle distributions)
    atts$names <- attr(use_rdm, "names")
    attributes(use_rdm) <- atts
    
    # Save track
-   saveRDS(use_rdm, paste0("data/working/bird_tracks/fit_ready/ssf/test_", id_sel,".rds"))
+   saveRDS(use_rdm, paste0("data/working/bird_tracks/fit_ready/ssf/", id_sel,".rds"))
    
 }
 
@@ -345,7 +348,10 @@ rm(list = ls())
 # create a data frame to store results
 model_data <- data.frame()
 
-trkfiles <- list.files("data/working/bird_tracks/fit_ready/ssf", pattern = "test")
+trkfiles <- list.files("data/working/bird_tracks/fit_ready/ssf")
+
+# Keep only those files that will be used for training models not for testing
+trkfiles <- trkfiles[!str_starts(trkfiles, "test")]
 
 for(i in 1:length(trkfiles)){
    trk <- readRDS(paste0("data/working/bird_tracks/fit_ready/ssf/", trkfiles[i]))
@@ -364,6 +370,16 @@ model_data <- model_data %>%
    left_join(dplyr::select(hab_meta, "Map code", "class_code"), by = c("land_use" = "Map code")) %>%
    rename(land_cov = class_code)
 
+# There are a few NA NDVI corresponding mostly to locations over the ocean.
+# I will assign the mean NDVI value
+model_data %>%
+   filter(is.na(NDVI_mean)) %>%
+   group_by(land_cov) %>%
+   summarize(n = n())
+
+model_data <- model_data %>%
+   mutate(NDVI_mean = if_else(is.na(NDVI_mean), mean(NDVI_mean, na.rm = T), NDVI_mean))
+
 # Make variable names more understandable
 model_data <- model_data %>% 
    rename(elev = res01_srtm0,
@@ -372,7 +388,6 @@ model_data <- model_data %>%
 
 # Make dummy variables from factors (I also keep the factors)
 model_data <- model_data %>%
-   mutate(id = row_number()) %>% 
    mutate(i = 1,
           land_cov_fct = land_cov) %>%
    spread(land_cov, i, fill = 0) %>%
@@ -381,11 +396,80 @@ model_data <- model_data %>%
           zone_fct = zone) %>%
    spread(zone, i, fill = 0) %>%
    mutate(i = 1,
+          res = factor(res, levels = c(1, 2, 3, 4, 8, 24), labels = paste("res", c(1, 2, 3, 4, 8, 24), sep = "_")),
+          res_fct = res) %>%
+   spread(res, i, fill = 0) %>%
+   mutate(i = 1,
           age = factor(age, levels = c("juv", "ad")),
           age_fct = age) %>%
    spread(age, i, fill = 0)
 
 
+# Define trips from colony ------------------------------------------------
+
+# Each day will be a trip unless the bird doesn't return to colony (dist_col < 5e3)
+
+# Number of locations for each bird
+model_data <- nest(model_data, data = -c(bird_id))
+
+# Function to define trips from the central colony
+f <- function(trk){
+   
+   trk <- trk %>% 
+      mutate(date = lubridate::date(t2_))
+   
+   trips <- trk %>% 
+      group_by(date) %>% 
+      summarize(mindist = min(dist_col)) %>% 
+      mutate(at_col = if_else(mindist <= 5e3, 1, 0))
+   
+   trips$trip <- trips$at_col
+   
+   # Initiate trips
+   t <- 1
+   trips$trip[1] <- t
+   
+   for(i in 2:nrow(trips)){
+      if(trips$trip[i] == 0){
+         trips$trip[i] <- t
+      } else {
+         t <- t + 1 
+         trips$trip[i] <- t
+      }
+   }
+   
+   trips <- trips %>% 
+      group_by(trip) %>% 
+      mutate(days_away = difftime(date, lag(date), units = "day"),
+             days_away = ifelse(is.na(days_away), 0, days_away),
+             days_away = cumsum(days_away)) %>% 
+      ungroup()
+   
+   trk <- trk %>% 
+      left_join(trips %>% dplyr::select(date, trip, days_away),
+                by = "date")
+   
+   return(trk)
+   
+}
+
+model_data$data <- model_data$data %>% 
+   map(~f(.x))
+
+model_data <- unnest(model_data, cols = c(bird_id, data))
+
+model_data <- model_data %>% 
+   mutate(trip = paste(bird_id, trip, sep = "_"))
+
+# model_data %>%
+#    group_by(age_fct, trip) %>%
+#    summarize(days_away = max(days_away)) %>%
+#    filter(days_away < 25) %>%
+#    ggplot() +
+#    geom_histogram(aes(x = days_away)) +
+#    facet_wrap("age_fct")
+
+
 # Save data ---------------------------------------------------------------
 
-saveRDS(model_data, "data/working/data_ssf_test.rds")
+saveRDS(model_data, "data/working/data_ssf_ready.rds")

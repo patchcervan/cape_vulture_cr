@@ -15,7 +15,7 @@ rm(list = ls())
 filepath <- "data/working/WDPA_protected_areas/"
 
 # List files
-shpfiles <- list.files(filepath, pattern = ".shp")
+shpfiles <- list.files(filepath, pattern = "^WDPA.*shp$")
 
 # Create a data frame to store all the protected areas
 pa <- vector("list", length = length(shpfiles))
@@ -28,9 +28,10 @@ pa <- do.call("rbind", pa)
 plot(st_geometry(pa))
 
 # Save the result
-st_write(pa, dsn = paste0(filepath, "prot_areas.shp"), driver = "ESRI Shapefile" )
+st_write(pa, dsn = paste0(filepath, "prot_areas.shp"), driver = "ESRI Shapefile", append = FALSE)
 
-# Dissolve in a single polygon (very slow)
+# Dissolve in a single multipolygon (this might take a while)
+sf_use_s2(FALSE) # s2 throws an error
 pa <- pa %>% 
     mutate(prot_area = "yes") %>% 
     group_by(prot_area) %>% 
@@ -38,4 +39,4 @@ pa <- pa %>%
 
 
 # Save the dissoved result (single polygon)
-st_write(pa, dsn = paste0(filepath, "prot_areas_single.shp"), driver = "ESRI Shapefile" )
+st_write(pa, dsn = paste0(filepath, "prot_areas_single.shp"), driver = "ESRI Shapefile", append = FALSE)
