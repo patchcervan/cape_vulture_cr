@@ -227,22 +227,6 @@ ssf_fit_rm <- glmmTMB(model, family = poisson, data = vults,
 
 saveRDS(ssf_fit_rm, "output/ssf_fit_7pp.rds")
 
-
-# Explore results ---------------------------------------------------------
-
-# ssf_fit_rm <- readRDS("output/ssf_fit_7pp.rds")
-# ssf_fit_summ <- summary(ssf_fit_rm)
-# 
-# saveRDS(ssf_fit_summ, "output/ssf_fit_summ_7pp.rds")
-# 
-# mod_sum <- readRDS("output/ssf_fit_summ_7pp.rds")
-# mod_sum
-# 
-# mod_sum <- c(mod_sum, mod25a_habclass = summary(ssf_fit_rm))
-# 
-# write_rds(mod_sum, "data/working/model_summ.rds")
-# 
-# VarCorr(ssf_fit_rm)
-# 
-# # Standard errors for fixed and random effects
-# ssf_fit_rm$sdr
+# Save also the summary (this might take quite a lot of RAM)
+ssf_fit_summ <- summary(ssf_fit_rm)
+saveRDS(ssf_fit_summ, "output/ssf_fit_summ_7pp.rds")
