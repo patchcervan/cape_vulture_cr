@@ -16,8 +16,8 @@ library(raster)
 colony_all <- read_csv("data/working/colony_all_w_da.csv")
 
 # Define raster directory
-# rasterdir <- "output/pred_raster_sims/"
-rasterdir <- "hpc/output/pred_raster/"
+rasterdir <- "output/pred_raster_sims/"
+# rasterdir <- "hpc/output/pred_raster/"
 
 
 # Define prediction area --------------------------------------------------
@@ -48,12 +48,17 @@ col_to_pred <- colony_all %>%
 
 source("R/functions/findMapCodes.R")
 
-map_codes <- findMapCodes(pred_area) # Could these not be fixed?
+map_codes <- findMapCodes(pred_area)
+
+# mapfiles <- list.files(paste0(rasterdir, "2_pred_map_ud/"), pattern = ".tif$")
+# mapfiles <- mapfiles[str_detect(mapfiles, "gamfit")]
+# mapfiles <- mapfiles[str_detect(mapfiles, age)]
+# map_codes <- map_codes[!map_lgl(map_codes, ~any(str_detect(mapfiles, .x)))]
 
 
 # Calculate UD from sims --------------------------------------------------
 
-source("R/functions/calcUDFromSims.R")
+source("R/functions/calcHgtRiskFromSims.R")
 
 # # Run these for single maps
 # calcUD(.mapcode = map_codes, .rasterdir = rasterdir,
@@ -63,12 +68,12 @@ source("R/functions/calcUDFromSims.R")
 #        scale = T, .outputdir = paste0(rasterdir, "2_pred_map_ud/"))
 
 # Estimate UD without scaling
-map(map_codes, ~calcUD(.mapcode = .x, .col_to_pred = col_to_pred, .age = age, scale = F,
-                       .rasterdir = rasterdir, .outputdir = paste0(rasterdir, "2_pred_map_ud/")))
+map(map_codes, ~calcHgtRisk(.mapcode = .x, .col_to_pred = col_to_pred, .age = age, scale = F,
+                       .rasterdir = rasterdir, .outputdir = paste0(rasterdir, "2a_pred_map_hgt/")))
 
 # Estimate UD with scaling
-map(map_codes, ~calcUD(.mapcode = .x, .col_to_pred = col_to_pred, .age = age, scale = T,
-                       .rasterdir = rasterdir, .outputdir = paste0(rasterdir, "2_pred_map_ud/")))
+map(map_codes, ~calcHgtRisk(.mapcode = .x, .col_to_pred = col_to_pred, .age = age, scale = T,
+                       .rasterdir = rasterdir, .outputdir = paste0(rasterdir, "2a_pred_map_hgt/")))
 
 
 

@@ -16,15 +16,23 @@ provfiles <- list.files(paste0(rasterdir, "3_provinces/"), pattern = "gamfit")
 
 provfiles <- provfiles[!str_detect(provfiles, "SA_")]
 
+hgt <- TRUE
+
+if(hgt){
+   provfiles <- provfiles[str_detect(provfiles, "_hgt_")]
+} else {
+   provfiles <- provfiles[!str_detect(provfiles, "_hgt_")]
+}
+
 
 # Define age --------------------------------------------------------------
 
-age <- "juv"
+age <- "ad"
 
 agefiles <- provfiles[str_detect(provfiles, age)]
 
 # Scaled by counts?
-sc <- FALSE
+sc <- TRUE
 
 if(sc){
    agefiles <- agefiles[!str_detect(agefiles, "nosc")]
@@ -111,5 +119,5 @@ col_join %>%
                    title = "Adult individuals")
 
 # Save final raster
-outputfile <- paste0(rasterdir, "4_provinces/", filecode,"_", age, "_final.tif")
-writeRaster(rr, outputfile, overwrite = T)
+# outputfile <- paste0(rasterdir, "4_provinces/", filecode,"_", age, "_final.tif")
+# writeRaster(rr, outputfile, overwrite = T)

@@ -12,7 +12,7 @@ rasterdir <- "output/pred_raster_sims/"
 
 # Define age --------------------------------------------------------------
 
-age <- "juv"
+age <- "ad"
 
 # Do we want to scale by colony size?
 sc <- TRUE
@@ -79,7 +79,7 @@ for(i in seq_along(provs)){
    
    
    # Name for saving
-   filecode <- str_replace(tolower(unique(prov$NAME_1)),  " ", "_")
+   filecode <- paste0(str_replace(tolower(unique(prov$NAME_1)),  " ", "_"), "_hgt")
    
    
    # Find map codes ----------------------------------------------------------
@@ -92,7 +92,7 @@ for(i in seq_along(provs)){
    # CROP TO PREDICTION AREA -------------------------------------------------
    
    # Load the name of all raster files
-   rfiles <- list.files(paste0(rasterdir, "2_pred_map_ud/"), pattern = ".tif$")
+   rfiles <- list.files(paste0(rasterdir, "2a_pred_map_hgt/"), pattern = ".tif$")
    
    # Extract smooth raster of the desired age
    rfiles <- rfiles[str_detect(rfiles, age)]
@@ -120,7 +120,7 @@ for(i in seq_along(provs)){
    
    for(j in seq_along(rfiles)){
       
-      r <- raster(paste0(rasterdir,"2_pred_map_ud/", rfiles[j]))
+      r <- raster(paste0(rasterdir,"2a_pred_map_hgt/", rfiles[j]))
       
       if(!is.null(intersect(extent(r), extent(prov)))){
          rr[[j]] <- crop(r, prov)
