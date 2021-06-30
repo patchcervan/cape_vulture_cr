@@ -13,6 +13,8 @@ library(lubridate)
 library(furrr)
 library(raster)
 
+sf_use_s2(FALSE) # s2 throws error when intersecting protected areas
+
 
 # Read in data ------------------------------------------------------------
 

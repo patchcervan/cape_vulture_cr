@@ -206,12 +206,14 @@ height_fit <- glmmTMB(model, family = binomial, data = vults,
 # Save model fit
 saveRDS(height_fit, "output/height_fit.rds")
 
+height_fit_summ <- summary(height_fit)
+
+saveRDS(height_fit_summ, "output/hgt_fit_summ.rds")
+
 
 # Explore results ---------------------------------------------------------
 
-height_fit_rm <- read_rds("output/height_fit_rm.rds")
-
-summary(height_fit_rm)
+height_fit <- readRDS("output/height_fit.rds")
 
 x <- -7:7
 
