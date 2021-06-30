@@ -7,46 +7,42 @@ rm(list = ls())
 
 
 # Define raster directory
-rasterdir <- "output/pred_raster_sims/"
+rasterdir <- "../vultRmap/analysis/output/"
 
+# Area to predict
+SA <- readRDS("data/working/gadm36_ZAF_1_sp.rds")
 
-# Define area to predict --------------------------------------------------
+ec <- SA %>% 
+   st_as_sf() %>% 
+   filter(NAME_1 == "Eastern Cape")
 
-provfiles <- list.files(paste0(rasterdir, "3_provinces/"), pattern = "gamfit")
-
-provfiles <- provfiles[str_detect(provfiles, "eastern_cape")]
+# Risk map 2D -------------------------------------------------------------
 
 hgt <- FALSE
+r <- sum(raster(paste0(rasterdir, "enc_risk_ad.tif")),
+         raster(paste0(rasterdir, "enc_risk_juv.tif")))
 
-if(hgt){
-   provfiles <- provfiles[str_detect(provfiles, "_hgt_")]
-} else {
-   provfiles <- provfiles[!str_detect(provfiles, "_hgt_")]
-}
+r <- crop(r, ec)
+r <- mask(r, ec)
 
-# Scaled by counts?
-sc <- TRUE
+# Risk map 3D -------------------------------------------------------------
 
-if(sc){
-   provfiles <- provfiles[!str_detect(provfiles, "nosc")]
-} else {
-   provfiles <- provfiles[str_detect(provfiles, "nosc")]
-}
+hgt <- TRUE
+r <- sum(raster(paste0(rasterdir, "enc_hgt_risk_ad.tif")),
+         raster(paste0(rasterdir, "enc_hgt_risk_juv.tif")))
+
+r <- crop(r, ec)
+r <- mask(r, ec)
 
 
 # Load rasters ------------------------------------------------------------
-
-# Merge rasters
-rr <- map(provfiles, ~raster(paste0(rasterdir,"3_provinces/", .x))) 
-
-rr <- Reduce("+", rr)
 
 source("R/functions/calcUDquantile.R")
 
 nlevels <- 10
 udlevels <- seq(0, 1, length.out = nlevels + 1)
 
-qpal <- colorBin("RdYlBu", raster::values(rr), bins = calcUDquantile(raster::values(rr), udlevels),
+qpal <- colorBin("RdYlBu", raster::values(r), bins = calcUDquantile(raster::values(r), udlevels),
                  na.color = "transparent", reverse = T)
 
 labels = paste0(udlevels*100, "-", lead(udlevels*100), " %")
@@ -56,17 +52,17 @@ pal_col <- colorFactor(c("yellow", "red", "grey"), domain = c(0, 1, 2))
 
 leaflet() %>%
    addTiles() %>%
-   addRasterImage(rr, colors = qpal, opacity = 0.8) %>%
-   addLegend(pal = colorBin("RdYlBu", raster::values(rr), 
-                            bins = calcUDquantile(raster::values(rr), 
+   addRasterImage(r, colors = qpal, opacity = 0.8) %>%
+   addLegend(pal = colorBin("RdYlBu", raster::values(r), 
+                            bins = calcUDquantile(raster::values(r), 
                                                   udlevels),
                             na.color = "transparent", reverse = T),
-             values = raster::values(rr), title = "UD", layerId = "udlegend", position = "bottomright",
+             values = raster::values(r), title = "UD", layerId = "udlegend", position = "bottomright",
              labFormat = function(type, cuts, p) { 
                 paste0(labels)
              })
 
 # Save final raster
 cr <- if(hgt){"cr"} else {"ud"}
-outputfile <- paste0(rasterdir, "3_provinces/", "ec_", cr, "_gareth.tif")
-writeRaster(rr, outputfile, overwrite = T)
+outputfile <- paste0("output/pred_raster_sims/3_provinces/", "ec_", cr, "_gareth.tif")
+writeRaster(r, outputfile, overwrite = T)
