@@ -450,9 +450,11 @@ col_counts <- col_counts %>%
 
 # Calculate average number of adults and juveniles per colony
 count_summ <- col_counts %>% 
+   filter(!is.na(ad_p)) %>% 
    group_by(name_new, lon, lat, type) %>% 
    summarize(avg_ad = round(mean(ad_p, na.rm = T)),
              avg_juv = round(mean(juv_p, na.rm = T)),
+             ncounts = n(),
              names_old = paste(unique(name), collapse = ",")) %>% 
    ungroup()
 
@@ -471,11 +473,11 @@ col_locs <- col_locs_all %>%
 # Join both locations and locations with counts
 col_join <- rbind(
    col_locs %>% 
-      mutate(avg_ad = NA, avg_juv = NA, names_old = NA, counted = 0) %>% 
-      dplyr::select(name, lon, lat, avg_ad, avg_juv, names_old, counted, type),
-   count_summ %>% 
-      dplyr::select(name = name_new, lon, lat, avg_ad, avg_juv, names_old, type) %>% 
-      mutate(counted = 1)
+      mutate(avg_ad = NA, avg_juv = NA, ncounts = 0, names_old = NA, counted = 0) %>% 
+      dplyr::select(name, lon, lat, avg_ad, avg_juv, ncounts, names_old, counted, type),
+   count_summ %>%
+      mutate(counted = 1) %>% 
+      dplyr::select(name = name_new, lon, lat, avg_ad, avg_juv, ncounts, names_old, counted, type)
 )
 
 # Replace any non UTF-8 in colony names by '#'
@@ -513,6 +515,7 @@ total_v <- rbind(col_v %>%
 total_v <- total_v %>% 
    mutate(avg_ad = NA,
           avg_juv = NA,
+          ncounts = 0,
           names_old = NA,
           counted = 0) %>% 
    dplyr::select(names(col_join))

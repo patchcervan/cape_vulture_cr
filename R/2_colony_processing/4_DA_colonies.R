@@ -133,6 +133,25 @@ col %>%
 
 names(col_all)
 
+# Calculate number of years with counts for each colony
+navg_ad <- col %>% 
+   group_by(name, lat, lon, year) %>% 
+   summarize(avg_ad = mean(npairs, na.rm = T)*2,
+             avg_cnt = mean(nbirds, na.rm = T)) %>% 
+   filter(!is.nan(avg_ad)) %>% 
+   summarize(ncounts = n()) %>% 
+   ungroup()
+
+navg_cnt <- col %>% 
+   group_by(name, lat, lon, year) %>% 
+   summarize(avg_ad = mean(npairs, na.rm = T)*2,
+             avg_cnt = mean(nbirds, na.rm = T)) %>% 
+   filter(!is.nan(avg_cnt)) %>% 
+   summarize(ncounts = n()) %>% 
+   ungroup()
+
+
+# Calculate actual average counts
 col <- col %>% 
    group_by(name, lat, lon, year) %>% 
    mutate(avg_ad = mean(npairs, na.rm = T)*2,
@@ -178,6 +197,9 @@ col_summ <- col_summ %>%
    filter(!is.nan(avg_ad)) %>% 
    filter(!is.na(lon), !is.na(lat))
 
+# Add number of counts
+col_summ <- left_join(col_summ,
+                      dplyr::select(navg_ad, name, ncounts))
 
 write_csv(col_summ, file = "data/working/DA_col_loc.csv")
 
@@ -336,7 +358,8 @@ col_new <- col_new %>%
 # Fix juvenile counts -----------------------------------------------------
 
 col_new <- col_new %>% 
-   mutate(avg_juv = round(0.43*avg_ad))
+   mutate(avg_ad = round(avg_ad),
+          avg_juv = round(0.43*avg_ad))
 
    
 

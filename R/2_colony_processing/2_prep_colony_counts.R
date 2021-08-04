@@ -338,9 +338,11 @@ write.csv(col_counts, "data/working/col_counts_locs.csv", row.names = F)
           
 # Calculate average number of adults and juveniles per colony
 count_summ <- col_counts %>% 
+   filter(!is.na(ad_p)) %>% 
    group_by(name_new, lon, lat, type) %>% 
    summarize(avg_ad = mean(ad_p, na.rm = T),
-             avg_juv = mean(juv_p, na.rm = T)) %>% 
+             avg_juv = mean(juv_p, na.rm = T),
+             ncounts = n()) %>% 
    ungroup()
 
 # I want to add a column with previous names for the colonies
