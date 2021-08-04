@@ -491,6 +491,11 @@ col_new <- col_new %>%
                      "cvcol892", "cvcol893")) %>% 
    filter(name != "Ha Ramaepho A")
 
+col_new <- col_new %>% 
+   filter(!id %in% c("da_21","da_26", "da_97","da_103","da_104","da_110","da_132",
+                     "da_155","da_158","da_159","da_160","da_161","da_162","da_163",
+                     "da_164","da_180","da_183","da_242"))
+
 # Remove duplicate ids
 col_new %>% 
    group_by(id) %>% 
