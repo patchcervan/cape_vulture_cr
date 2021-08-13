@@ -7,7 +7,7 @@ rm(list = ls())
 
 
 # Define raster directory
-rasterdir <- "../vultRmap/analysis/output/"
+rasterdir <- "../vultRmap/analysis/output/risk_maps/"
 
 # Area to predict
 SA <- readRDS("data/working/gadm36_ZAF_1_sp.rds")

@@ -133,22 +133,22 @@ col %>%
 
 names(col_all)
 
-# Calculate number of years with counts for each colony
-navg_ad <- col %>% 
-   group_by(name, lat, lon, year) %>% 
-   summarize(avg_ad = mean(npairs, na.rm = T)*2,
-             avg_cnt = mean(nbirds, na.rm = T)) %>% 
-   filter(!is.nan(avg_ad)) %>% 
-   summarize(ncounts = n()) %>% 
-   ungroup()
-
-navg_cnt <- col %>% 
-   group_by(name, lat, lon, year) %>% 
-   summarize(avg_ad = mean(npairs, na.rm = T)*2,
-             avg_cnt = mean(nbirds, na.rm = T)) %>% 
-   filter(!is.nan(avg_cnt)) %>% 
-   summarize(ncounts = n()) %>% 
-   ungroup()
+# # Calculate number of years with counts for each colony
+# navg_ad <- col %>% 
+#    group_by(name, lat, lon, year) %>% 
+#    summarize(avg_ad = mean(npairs, na.rm = T)*2,
+#              avg_cnt = mean(nbirds, na.rm = T)) %>% 
+#    filter(!is.nan(avg_ad)) %>% 
+#    summarize(ncounts = n()) %>% 
+#    ungroup()
+# 
+# navg_cnt <- col %>% 
+#    group_by(name, lat, lon, year) %>% 
+#    summarize(avg_ad = mean(npairs, na.rm = T)*2,
+#              avg_cnt = mean(nbirds, na.rm = T)) %>% 
+#    filter(!is.nan(avg_cnt)) %>% 
+#    summarize(ncounts = n()) %>% 
+#    ungroup()
 
 
 # Calculate actual average counts
@@ -197,9 +197,17 @@ col_summ <- col_summ %>%
    filter(!is.nan(avg_ad)) %>% 
    filter(!is.na(lon), !is.na(lat))
 
-# Add number of counts
-col_summ <- left_join(col_summ,
-                      dplyr::select(navg_ad, name, ncounts))
+# Add number of counts (I'll just say all colonies were counted once for this dataset)
+col_summ <- col_summ %>% 
+   mutate(ncounts = 1)
+
+# # We need to keep the order not to break previous code
+# col_summ$idx <- seq_len(nrow(col_summ))
+# 
+# col_summ <- left_join(col_summ,
+#                       dplyr::select(navg_ad, name, ncounts)) %>% 
+#    arrange(idx) %>% 
+#    dplyr::select(-idx)
 
 write_csv(col_summ, file = "data/working/DA_col_loc.csv")
 
@@ -491,10 +499,10 @@ col_new <- col_new %>%
                      "cvcol892", "cvcol893")) %>% 
    filter(name != "Ha Ramaepho A")
 
-col_new <- col_new %>% 
-   filter(!id %in% c("da_21","da_26", "da_97","da_103","da_104","da_110","da_132",
-                     "da_155","da_158","da_159","da_160","da_161","da_162","da_163",
-                     "da_164","da_180","da_183","da_242"))
+# col_new <- col_new %>% 
+#    filter(!id %in% c("da_21","da_26", "da_97","da_103","da_104","da_110","da_132",
+#                      "da_155","da_158","da_159","da_160","da_161","da_162","da_163",
+#                      "da_164","da_180","da_183","da_242"))
 
 # Remove duplicate ids
 col_new %>% 

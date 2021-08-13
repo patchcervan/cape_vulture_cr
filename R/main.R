@@ -30,6 +30,10 @@ for(f in 1:length(proc)){
     source(paste0("R/1_data_processing/", proc[f]))
 }
 
+# Also run fine processing: exclude certain birds, cut out certain periods, change ages for
+# long term tracking, re-sample very high resolution tracks. Do before any colony processing
+source("R/1_data_processing/3_fine_process.R")
+
 
 # Prepare colony data -----------------------------------------------------
 
@@ -38,16 +42,14 @@ scripts <- dir("R/2_colony_processing")
 
 # Run the processing scripts for colonies
 for(s in seq_along(scripts)){
-    print(f)
-    source(paste0("R/2_colony_processing/", proc[f]))
+    print(s)
+    # Load scripts
+    scripts <- dir("R/2_colony_processing")
+    source(paste0("R/2_colony_processing/", scripts[s]))
 }
 
 
 # Run other processing scripts -----------------------------------------------
-
-# Run fine processing: exclude certain birds, cut out certain periods, change ages for
-# long term tracking, re-sample very high resolution tracks
-source("R/1_data_processing/3_fine_process.R")
 
 # Run the colony process scripts in which we find the central places of the 
 # vultures (WE SHOULD HAVE RAN "R/2_colony_finding/1_colony_finding.R" ALREADY)
@@ -55,7 +57,8 @@ source("R/1_data_processing/4_colony_process.R")
 
 # Run script to classify movement modes. This takes really long, so consider
 # running in the UCT HPC. If ran in the HPC, there is a second part in the script
-# (from "Explore state proportions") that must be ran in the local script. Do it manually.
+# (from "Explore state proportions") that must be ran in the local script if one
+# wants to explore state proportions and things like that. Do it manually.
 source("R/1_data_processing/5_move_mode_process.R")
 
 
@@ -73,10 +76,17 @@ source("R/3_prepare_covts/3_prep_prot_areas.R")
 
 # Identify steep slopes to calculate distance to them later
 # Might have to unload certain packages for it to run properly (best just re-start R)
-source("R/3_prepare_covts/4_prep_dist_slopes.R")
+source("R/3_prepare_covts/4_prep_steep_slopes.R")
+
+# Create rasters with distance to steep slopes to use as covariates
+# This takes very long, so don't run unless completely necessary
+source("R/3_prepare_covts/5_prep_dist_slp.R")
+
+# Increase the resolution of distance to slopes and tranform to meters
+source("R/3_prepare_covts/5a_red_dist_slp_m.R")
 
 # Prepare the supplementary feeding sites file for processing
-source("R/3_prepare_covts/5_prep_covts_restaurants.R")
+source("R/3_prepare_covts/6_prep_covts_restaurants.R")
 
 
 # Run the last processing scripts -----------------------------------------------
@@ -90,3 +100,10 @@ source("R/1_data_processing/7_dist_process.R")
 
 # Create a database with the new information extracted from the birds
 source("R/1_data_processing/8_create_db_fit_ready.R")
+
+
+# Fit SSF model -----------------------------------------------------------
+
+# Prepare data regularizing trajectories and annotating with covariates
+source("R/4_ssf_model/1a_prep_ssf_data.R")
+

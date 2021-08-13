@@ -17,7 +17,7 @@ library(furrr)
 # Load data ---------------------------------------------------------------
 
 # Vulture data
-vults <- readRDS("data/working/data_ssf_ready.rds")
+vults <- readRDS("data/working/data_ssf_ready_5pp.rds")
 
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%
@@ -268,7 +268,7 @@ for(m in seq_along(models)){
 resultsdir <- "hpc/output/"
 
 # Load from cluster
-files <- list.files(resultsdir, pattern = "cv_results_[1-5]t.rds")
+files <- list.files(resultsdir, pattern = "cv_results_[1-8]t1.rds")
 
 cv_results <- data.frame()
 
@@ -277,22 +277,14 @@ for(i in seq_along(files)){
                         readRDS(paste0(resultsdir, files[i])))
 }
 
-cv_results <- rbind(cv_results,
-                    readRDS(paste0(resultsdir, "cv_results_10.rds")),
-                    readRDS(paste0(resultsdir, "cv_results_11.rds")))
-
-
 # Load the other batch
 resultsdir <- "hpc/output/"
-files <- list.files(resultsdir, pattern = "cv_results_[1-6]t1.rds")
+files <- list.files(resultsdir, pattern = "cv_results_[1-6]t2.rds")
 
 for(i in seq_along(files)){
     cv_results <- rbind(cv_results,
                         readRDS(paste0(resultsdir, files[i])))
 }
-
-cv_results <- rbind(cv_results,
-                    readRDS(paste0(resultsdir, "cv_results_10.rds")))
 
 print(cv_results, n = Inf)
 
