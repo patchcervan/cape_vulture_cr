@@ -80,6 +80,8 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
    
    # ssf_fit <- readRDS("hpc/output/ssf_fit_test1_mod2.rds")
    
+   gc()
+   
    # Predict for the test groups ---------------------------------------------
    
    # Extract test data
@@ -227,6 +229,8 @@ fitCVssf <- function(train_data = "data/working/data_ssf_ready.rds", test_data =
                        logLik = summary(ssf_fit)$AIC["logLik"],
                        cv_pi = cv_pi,
                        formula = paste(model, collapse = ""))
+         
+         gc()
       }
    }
    
