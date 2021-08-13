@@ -2,6 +2,9 @@
 
 # In this script we fit a hierarchical SSF model to the vulture data set
 
+# THIS SCRIPT USES A LOT OF RAM, SO YOU MIGHT WANT TO CONSIDER RUNNING ON 
+# HIGH PERFORMANCE CLUSTER (RSTUDIO WILL CRASH WITH 32GB)
+
 rm(list = ls())
 
 library(tidyverse)
@@ -219,21 +222,19 @@ models <- list(
                 rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
                            list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id")),
                            list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id"))),
-                data = vults)#,
-    # mod5 = form(fxd = c("ns(dist_col, 5)", "dist_col_any", "dist_sfs", "ns(sl_, 5)", mod_elem[c("topo2", "hab")]),
-    #             intn = list(list(c("ns(dist_col, 5)", "dist_col_any", "dist_sfs"), c("juv")),
-    #                         list("ns(dist_col, 5)", c("ttnoon", "ttnoon:juv")),
-    #                         list("ns(sl_, 5)", c("ttnoon", "res"))),
-    #             rdm = list(list(unlist(c("ns(dist_col, 5)", "dist_col_any", "dist_sfs", mod_elem[c("topo2", "hab")])), c("bird_id")),
-    #                        list(c("ns(sl_, 5):ttnoon"), c("bird_id"))),
-    #             data = vults),
-    # mod6 = form(fxd = c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)", "ns(sl_, 5)", mod_elem[c("topo2", "hab")]),
-    #             intn = list(list(c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)"), c("juv")),
-    #                         list("ns(sl_, 5)", c("ttnoon", "res"))),
-    #             rdm = list(list(unlist(c("ns(dist_col, 5)", "ns(dist_col_any, 5)", "ns(dist_sfs, 5)", mod_elem[c("topo2", "hab")])), c("bird_id")),
-    #                        list(c("ns(sl_, 5):ttnoon"), c("bird_id"))),
-    #             data = vults)
+                data = vults),
+    mod9 = form(fxd = c("log_dist_col", mod_elem[c("dist", "topo2", "hab", "mov")]),
+                intn = list(list(c("log_dist_col", mod_elem["dist"]), c("juv")),
+                            list(c("log_dist_col", mod_elem["dist"]), c("res")),
+                            list(c(mod_elem["topo2"]), c("res")),
+                            list("dist_col", c("ttnoon", "ttnoon_sq", "ttnoon:juv", "ttnoon_sq:juv")),
+                            list("sl_", c("ttnoon", "ttnoon_sq", "res"))),
+                rdm = list(list(unlist(c("log_dist_col", mod_elem[c("dist", "topo2", "mov")])), c("bird_id")),
+                           list(c("sl_:ttnoon", "sl_:ttnoon_sq"), c("bird_id")),
+                           list(c("dist_col:ttnoon", "dist_col:ttnoon_sq"), c("bird_id"))),
+                data = vults)
 )
+
 # Set model names
 for (i in seq_along(models)){
     attr(models[[i]], "model") <- paste0("mod", i)
@@ -251,12 +252,18 @@ source("R/functions/fitCVssf.R")
 
 for(m in seq_along(models)){
     
-    cv_results <- future_map(cv_ids, ~fitCVssf(train_data = "data/working/data_ssf_ready.rds",
-                                               test_data = "data/working/data_ssf_test.rds",
-                                               test_ids = .x, model = models[[m]], seed = 478476),
-                             .options = future_options(seed = 478476))
+    # Seeds
+    # 84546
+    # 5412
     
-    cv_results <- do.call("rbind", cv_results)
+    cv_results <- future_map(cv_ids, ~fitCVssf(train_data = "data/working/data_ssf_ready_5pp.rds",
+                                               test_data = "data/working/data_ssf_ready_5pp.rds",
+                                               test_ids = .x, model = models[[m]], seed = 5412,
+                                               save_fit = FALSE, 
+                                               output_file = paste0("output/cv_results/ssf_cv/cv_coef_mod_", attr(models[[m]], "model"), "_", attr(.x, "id"), ".rds")),
+                             .options = future_options(seed = 5412))
+
+cv_results <- do.call("rbind", cv_results)
     
     # Save cross-validation results
     saveRDS(cv_results, paste0("output/cv_results_", m, ".rds"))
