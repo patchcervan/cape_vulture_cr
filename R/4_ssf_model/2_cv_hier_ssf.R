@@ -275,7 +275,7 @@ cv_results <- do.call("rbind", cv_results)
 resultsdir <- "hpc/output/"
 
 # Load from cluster
-files <- list.files(resultsdir, pattern = "cv_results_[1-8]t1.rds")
+files <- list.files(resultsdir, pattern = "cv_results_[1-9]t1.rds")
 
 cv_results <- data.frame()
 
