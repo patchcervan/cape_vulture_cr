@@ -56,25 +56,10 @@ redz <- rbind(dplyr::select(redz1, Name),
 
 plot(redz)
 
-# Reclassify risk raster
-nlevels <- 10
-udlevels <- seq(0, 1, length.out = nlevels + 1)
-cutpt <- rev(vultRmap::calcUDquantile(raster::values(risk), udlevels))
-reclassM <- matrix(NA, nrow = length(cutpt)-1, ncol = 3)
-for(i in seq_len(nrow(reclassM))){
-      reclassM[i,] <- c(cutpt[i], cutpt[i+1], i)
-}
-
-risk_hgt_UD <- reclassify(risk_hgt, reclassM)
-risk_UD <- reclassify(risk, reclassM)
-
 
 # Analyze risk per province -----------------------------------------------
 
 # Extract provincial risk
-plot(risk_UD)
-plot(st_geometry(SA_total), add = TRUE)
-
 region_risk <- exactextractr::exact_extract(risk, range_total)
 
 region_risk <- map(region_risk, ~filter(.x, coverage_fraction > 0.5))
@@ -92,6 +77,8 @@ sum(values(risk), na.rm = T)
 sum(values(risk_hgt), na.rm = T)
 
 sum(values(risk), na.rm = T)/1.5
+
+write.csv(st_drop_geometry(range_total), file = "text/paper/figures/risk_range.csv")
 
 
 # Analyze risk per REDZ ---------------------------------------------------
@@ -122,8 +109,23 @@ redz$Name <- factor(redz$Name,
 
 arrange(redz, desc(risk_hgt_avg))
 
+write.csv(st_drop_geometry(redz), file = "text/paper/figures/redz.csv")
+
 
 # Plot REDZ risk ----------------------------------------------------------
+
+# Remove 0.1% of activity to reduce mapping
+cutoff <- 0.99
+risk_hgt[risk_hgt < calcUDquantile(raster::values(risk_hgt), cutoff)] <- NA
+
+# Reclassify risk raster
+nlevels <- 10
+udlevels <- seq(0, 1, length.out = nlevels + 1)
+
+# Reclassify
+cut_points <- calcUDquantile(raster::values(risk_hgt), udlevels)
+rcl <- cbind(c(cut_points[-1], 0), cut_points, udlevels)
+risk_hgt_UD <- reclassify(risk_hgt, rcl)
 
 # Relate hgt risk to REDZs
 redz_hgt_risk <- map2_dfr(redz$Name, redz_hgt_risk, ~tibble(name = .x, risk = .y$value))
@@ -162,8 +164,8 @@ redz_riskmap <- ggplot() +
                alpha = 1, show.legend = FALSE) +
    geom_sf(data = SA_total, fill = NA, linetype = 2, size = 0.3) +
    geom_sf(data = redz, aes(colour = Name), fill = NA) +
-   scale_fill_gradient(low = "white", high = "#CC089B") +
-   # scale_fill_viridis_c(option = "C", direction = -1) +
+   # scale_fill_gradient(low = "white", high = "#CC089B") +
+   scale_fill_viridis_c(option = "inferno", direction = 1, na.value = NA) +
    scale_colour_viridis_d(option = "D", direction = 1, name = "") +
    scale_x_continuous(expand = c(0, 0)) +
    scale_y_continuous(expand = c(0, 0)) +
