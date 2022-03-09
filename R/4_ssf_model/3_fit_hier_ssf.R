@@ -11,7 +11,7 @@ library(glmmTMB)
 # Load data ---------------------------------------------------------------
 
 # Vulture data
-vults <- readRDS("data/working/data_ssf_ready_7pp.rds")
+vults <- readRDS("data/working/data_ssf_ready_10pp.rds")
 
 # Create a unique id for each data point and make step codes unique
 vults <- vults %>%

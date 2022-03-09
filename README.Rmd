@@ -1,26 +1,29 @@
+---
+output: github_document
+---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
 
 # Cape Vulture Encounter Risk Map
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-In this repository you will find all the scripts used for processing the
-data and run the models that are used for building the encounter risk
-map for the Cape Vulture. There is a second repo that is used to produce
-the map from the fitted models. The simulation routines were separated
-from the fitting routines and packed into a package to be able to easily
-update the maps, when more/better information becomes available.
+In this repository you will find all the scripts used for processing the data and run the models that are used for building the encounter risk map for the Cape Vulture. There is a second repo that is used to produce the map from the fitted models. The simulation routines were separated from the fitting routines and packed into a package to be able to easily update the maps, when more/better information becomes available.
 
-Some of the processing and fitting scripts take quite long to run.
-Therefore, run only if completely necessary and go find something to do.
-In addition, some of the scripts are better suited to run in a high
-performance computing environment, because the are very demanding of RAM
-memory. These will be flagged throughout the document, to proceed with
-care.
+Some of the processing and fitting scripts take quite long to run. Therefore, run only if completely necessary and go find something to do. In addition, some of the scripts are better suited to run in a high performance computing environment, because the are very demanding of RAM memory. These will be flagged throughout the document, to proceed with care.
 
-``` r
+```{r, eval=FALSE}
+
 library(tidyverse)
 
 # Load processing scripts directories
@@ -30,16 +33,18 @@ scripts <- dir("R/1_data_processing")
 # If you want to overwrite templates you will have to run those scripts directly
 # (see data_processing/0_create_templates)
 scripts <- scripts[str_detect(scripts, "0", negate = T)]
+
 ```
+
 
 ## Run processing scripts for specific birds
 
-The objective of the data processing scripts is to bring all
-bird-tracking files to a common standard. Different types of tags have
-their own characteristics, and therefore, scripts are slightly different
-for different birds.
+The objective of the data processing scripts is to bring all bird-tracking files
+to a common standard. Different types of tags have their own characteristics, and
+therefore, scripts are slightly different for different birds.
 
-``` r
+```{r, eval=FALSE}
+
 proc <- scripts[1:18]
 
 for(f in 1:length(proc)){
@@ -58,16 +63,19 @@ for(f in 1:length(proc)){
 # Also run fine processing: exclude certain birds, cut out certain periods, change ages for
 # long term tracking, re-sample very high resolution tracks. Do before any colony processing
 source("R/1_data_processing/3_fine_process.R")
+
 ```
+
 
 ## Prepare colony data
 
-The colony data-processing scripts are used for bringing together colony
-data from different sources and format them to a common standard. This
-entails finding colonies that are repeated in the different sources to
-elaborate a unique list, and calculate the average size of the colonies.
+The colony data-processing scripts are used for bringing together colony data from
+different sources and format them to a common standard. This entails finding
+colonies that are repeated in the different sources to elaborate a unique list,
+and calculate the average size of the colonies.
 
-``` r
+```{r, eval=FALSE}
+
 # Load scripts
 scripts <- dir("R/2_colony_processing")
 
@@ -80,37 +88,43 @@ for(s in seq_along(scripts)){
   scripts <- dir("R/2_colony_processing")
   source(paste0("R/2_colony_processing/", scripts[s]))
 }
+
 ```
 
-Once the colony data-processing scripts have been run, we can determine
-what colonies each of the tracked vultures are using each year.
+Once the colony data-processing scripts have been run, we can determine what
+colonies each of the tracked vultures are using each year.
 
-``` r
+```{r, eval=FALSE}
+
 # Run the colony process scripts in which we find the central places of the 
 # vultures (WE SHOULD HAVE RAN "R/2_colony_finding/5_colony_finding.R" ALREADY)
 source("R/1_data_processing/4_colony_process.R")
+
 ```
+
 
 ## Find movement modes
 
-For some of the analysis we are interested in those tracking fixes that
-correspond to moving birds. To separate movement from resting modes, we
-used either Hidden Markov Models or finite mixture models. Running these
-models for all birds takes really long, so consider running in an HPC.
-If ran in an HPC, there is a second part in the script (from “Explore
-state proportions”) that must be ran in the local script if one wants to
-explore state proportions and things like that. Do it manually.
+For some of the analysis we are interested in those tracking fixes that correspond
+to moving birds. To separate movement from resting modes, we used either
+Hidden Markov Models or finite mixture models. Running these models for all birds
+takes really long, so consider running in an HPC. If ran in an HPC, there is a
+second part in the script (from "Explore state proportions") that must be ran in
+the local script if one wants to explore state proportions and things like that.
+Do it manually.
 
-``` r
+```{r, eval=FALSE}
 source("R/1_data_processing/5_move_mode_process.R")
 ```
 
+
 ## Prepare raster covariates
 
-In this scripts we will prepare the covariates used for fitting the
-step-selection and collision height model.
+In this scripts we will prepare the covariates used for fitting the step-selection
+and collision height model.
 
-``` r
+```{r, eval=FALSE}
+
 # Create slope and ruggedness rasters from elevation. Also set sea level = 0
 # Takes a while
 source("R/3_prepare_covts/1_prep_covts_topo_rasters.R")
@@ -140,76 +154,93 @@ source("R/3_prepare_covts/5a_red_dist_slp_m.R")
 
 # Prepare the supplementary feeding sites file for processing
 source("R/3_prepare_covts/6_prep_covts_restaurants.R")
+
 ```
+
 
 ## Run additional tracking data height processing scripts
 
-Some tracking tags had heights wrap down to zero when they went above
-2042. To correct this and other issues producing nonsensical outliers we
-run the following script. There will be some final processing in another
-script right before fitting
+Some tracking tags had heights wrap down to zero when they went above 2042. To
+correct this and other issues producing nonsensical outliers we run the following
+script. There will be some final processing in another script right before fitting
 
-``` r
+```{r, eval=FALSE}
 source("R/1_data_processing/6_height_process.R")
+
 ```
 
-Additionally, we run another script to detect anomalies in the distance
-travelled by the birds. Some of the individuals analysed were
-rehabilitated birds that might not exhibit a representative behaviour of
-the species in general.
+Additionally, we run another script to detect anomalies in the distance travelled
+by the birds. Some of the individuals analysed were rehabilitated birds that
+might not exhibit a representative behaviour of the species in general.
 
-``` r
+```{r, eval=FALSE}
+
 # Analyze distance traveled per day to try to detect anomalies
 source("R/1_data_processing/7_dist_process.R")
+
 ```
+
 
 ## Create a database and prepare model-fitting data
 
-``` r
+```{r, eval=FALSE}
+
 # Create a database with the new information extracted from the birds
 source("R/1_data_processing/8_create_db_fit_ready.R")
+
 ```
 
 Prepare data for fitting step-selection models.
 
-``` r
+```{r, eval=FALSE}
+
 # Regularize trajectories, create pseudo-absences and annotating with covariates
 # We tested different number of pseudo-absence points. For the final model we
 # used 10 but for model selection, to save time and memory we used 5pp
 source("R/4_ssf_model/1c_prep_ssf_data_10pp.R")
+
 ```
 
 Prepare data for fitting collision height model
 
-``` r
+```{r, eval=FALSE}
+
 # Annotating with covariates
 source("R/5_height_model/1_prep_height_data.R")
 
 # Final run of processing to fix some height records
 source("R/5_height_model/1b_height_data_fix.R")
+
 ```
+
 
 ## Model fitting
 
-We used cross-validation routines for model selection. These routines
-are memory demanding and take long to run, because models need to fitted
-multiple times. It is highly recommended to run these scripts in a high
-performance computing environment.
+We used cross-validation routines for model selection. These routines are memory
+demanding and take long to run, because models need to fitted multiple times. It
+is highly recommended to run these scripts in a high performance computing environment.
 
-``` r
+```{r, eval=FALSE}
+
 # Run cross-validation for step-selection models
 source("R/4_ssf_model/2_cv_hier_ssf.R")
 
 # Fit best model
 source("R/4_ssf_model/3_fit_hier_ssf.R")
+
 ```
 
-``` r
+
+```{r, eval=FALSE}
+
 # Run cross-validation for collision height models
 source("R/5_height_model/2_cv_hier_height.R")
 
 # Fit best model
 source("R/5_height_model/3_fit_hier_bern_height.R")
+
 ```
 
+
 ## Predicting from models
+
