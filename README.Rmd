@@ -20,7 +20,9 @@ knitr::opts_chunk$set(
 
 In this repository you will find all the scripts used for processing the data and run the models that are used for building the encounter risk map for the Cape Vulture. There is a second repo that is used to produce the map from the fitted models. The simulation routines were separated from the fitting routines and packed into a package to be able to easily update the maps, when more/better information becomes available.
 
-Some of the processing and fitting scripts take quite long to run. Therefore, run only if completely necessary and go find something to do. In addition, some of the scripts are better suited to run in a high performance computing environment, because the are very demanding of RAM memory. These will be flagged throughout the document, to proceed with care.
+Some of the processing and fitting scripts take quite long to run. Therefore, run only if completely necessary and go find something to do. In addition, some of the scripts are better suited to run in a high performance computing environment (HPC), because the are very demanding of RAM memory. These will be flagged throughout the document, to proceed with care.
+
+Note, paths to specific directories where data or outputs are hosted, need to be adapted to the user configuration.
 
 ```{r, eval=FALSE}
 
@@ -242,5 +244,127 @@ source("R/5_height_model/3_fit_hier_bern_height.R")
 ```
 
 
-## Predicting from models
+## Predicting utilization distributions
+
+Cape Vulture simulation of activity is performed from the [vultRmap](https://github.com/patchcervan/vultRmap)
+repository. There, we find the routines for predicting habitat preferences of the
+species over new environments, simulate activity using these preferences and movement
+contraints identified by the step-selection model, and finally produce utilization
+distribution maps. All these routines can be found in the `analysis/update_ALL` directory.
+
+Simulations are computationally very intensive and it is recommended to run them in a HPC.
+We used a 20 core machine and 200GB of RAM to run simulations for all colonies and
+it took a couple of days to run.
+
+Very importantly, to be able to run these routines, we need the data found in yet
+another directory called `vultRmap_data_aux`. This directory is not included in 
+vultRmap because it contains sensitive tracking and colony data, and it will be
+made available only by a motivated request.
+
+Once all the pre-requirements are met, we can start producing maps. As before,
+paths to specific directories need to be adapted to the user configuration.
+
+```{r, eval=FALSE}
+
+# Install the vultRmap package
+remotes::install_github("patchcervan/vultRmap")
+
+```
+
+
+```{r, eval=FALSE}
+
+# Run simulations around all identified colonies in a HPC environment
+source("analysis/update_ALL/1_ssf_sims_all.R")
+
+# Predict flight height for simulated Cape Vulture locations
+source("analysis/update_ALL/1_hgt_risk_all.R")
+
+# Smooth utilization distribution using GAMs
+source("analysis/update_ALL/3_ssf_gam_all.R")
+
+# Smooth utilization distribution at collision risk height GAMs
+source("analysis/update_ALL/4_hgt_gam_all.R")
+
+```
+
+
+## Producing encounter risk maps
+
+```{r, eval=FALSE}
+
+# Compute cumulative UD and produce raster maps
+source("analysis/update_ALL/5_make_all_risk_maps.R")
+
+# Save maps in HTML formats
+source("analysis/update_ALL/6_make_all_html_maps.R")
+
+```
+
+
+## Updating encounter risk maps
+
+If new colony and/or roost data is collected, the first thing we need to do, before updating the encounter risk maps, is to update our colony database. This will be done through the [vultRmap](https://github.com/patchcervan/vultRmap) package.
+
+At this point is really IMPORTANT TO MAKE A COPY OF THE COLONY DATABASE BEFORE MAKING ANY CHANGES. The following procedures will modify the database without the possibility of going back to what it was.
+
+The function `updateColonyCount()` is the workhorse function to update colony data. See `help(updateColonyCount)` for details. 
+
+The script `vultRmap/analysis/0_colony_updates/` is used to keep track of the updates made to the database so far. In this file there are some examples of updates that had be done before the paper was published.
+
+Once the updates to the colony database are completed, we must proceed to produce new Cape Vulture activity simulations for those colonies that we need updates for.
+
+The procedure for simulating around new colonies would be the same used in the previous section. However, in this case we will have to specify the colonies we want to simulate activity for. For this we go to `vultRmap/analysis/update_ONE` and run the two scripts in this directory, modifying the functions `1_ssf_sim` and `2_hgt_sim` specifying the colony codes we want simulations for. For example, the following code will simulate activity around colonies "cvcol009" and "cvcol115".
+
+```{r, eval=FALSE}
+sim_ssf(colonies = c("cvc009", "cvcol115"),
+        out_dir = "/home/vultRmap/sims",
+        data_dir = "/home/vultRmap_data_aux",
+        seeds = c(6548, 89745),
+        totalsteps = 1000,
+        ncores = 4,
+        dist_lim = 500,
+        sample_coefs = 4)
+```
+
+Similarly, this code will simulate flight height for the activity simulations
+
+```{r,eval=FALSE}
+sim_height_risk(colonies = c("cvc009", "cvcol115"),
+                data_dir = "../vultRmap_data_aux/",
+                sims_dir = "../vultRmap_data_aux/col_sims/",
+                out_dir = "../vultRmap_data_aux/col_hgt_sims/",
+                ncoefs = 40,
+                seed = 87634)
+```
+
+As previously mentioned, activity simulations are computationally demanding, so
+both scripts use the capabilities of the `furrr` package to run the simulations in
+parallel. It is recommended to use a machine with at least 4 cores and 16 GB of 
+RAM for running simulations for individual colonies.
+
+After simulating activity for the new colonies, we need to smooth the UDs for all
+colonies combined, just as we did earlier.
+
+```{r, eval=FALSE}
+
+# Smooth utilization distribution using GAMs
+source("analysis/update_ALL/3_ssf_gam_all.R")
+
+# Smooth utilization distribution at collision risk height GAMs
+source("analysis/update_ALL/4_hgt_gam_all.R")
+
+```
+
+And produce the encounter risk maps with the new information.
+
+```{r, eval=FALSE}
+
+# Compute cumulative UD and produce raster maps
+source("analysis/update_ALL/5_make_all_risk_maps.R")
+
+# Save maps in HTML formats
+source("analysis/update_ALL/6_make_all_html_maps.R")
+
+```
 
