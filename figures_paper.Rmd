@@ -1,0 +1,465 @@
+---
+title: "Figures for paper"
+author: "Pachi Cervantes"
+date: "25/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Figures for paper
+
+In this section we show how to reproduce the figures contained in the paper
+"A spatially explicit encounter risk model for the Cape Vulture Gyps coprotheres
+to guide wind energy development". To create these figures we will need the data
+used for the analysis, which contains sensitive information, and therefore will 
+be made available by request only.
+
+The first two figures of the paper are not code-based and therefore we don't 
+reproduce them here.
+
+## Spatial distribution of tracking and colony data
+
+```{r, eval=FALSE}
+
+library(raster)
+library(rnaturalearth)
+library(sf)
+library(dplyr)
+library(ggplot2)
+
+sf_use_s2(FALSE) # s2 throws an error when trying to crop
+
+
+# Prepare data ------------------------------------------------------------
+
+# Load model-ready step-selection data
+ssf_data <- readRDS("data/working/data_ssf_ready_10pp.rds")
+
+# Download South Africa map with Lesotho and Swaziland
+ssa_map <- ne_countries(scale = 50, continent = "Africa", returnclass = "sf")
+
+# Load roost and colony data
+colony_orig <- read.csv("../vultRmap_data_aux/colony_data.csv")
+
+# Transform into spatial objects
+colony <- st_as_sf(colony_orig, coords = c("lon", "lat"), 
+                   crs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs", remove = F)
+
+
+# Create grid for plotting data -------------------------------------------
+
+# Data range
+ext <- c(range(ssf_data$lon1_), range(ssf_data$lat1_))
+
+# Add a little padding
+ext <- ext + c(-5, 7.5, -1.55, 1)
+
+# create extent
+ext <- extent(ext)
+
+# Pixel dimensions
+pixsize <- 0.4
+
+# Create raster with desired extent
+omega <- raster(ext, resolution = rep(pixsize, 2), crs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# Crop Africa map
+ssa_map_cp <- st_crop(ssa_map, y = ext)
+
+
+# Plot distribution of tracking locations ---------------------------------
+
+# Count points per pixel
+counts <- rasterize(ssfdata[,c("lon1_", "lat1_")], omega, fun='count', background = 0)
+
+counts_df <- as.data.frame(counts, xy = T) %>% 
+  rename(count = layer) %>% 
+  mutate(count = if_else(count == 0, NA_real_, count),
+         log_count = log(count))
+
+ggplot() +
+  geom_sf(data = ssa_map_cp) +
+  geom_raster(data = counts_df, aes(x = x, y = y, fill = log_count)) +
+  geom_sf(data = ssa_map_cp, fill = NA) +
+  scale_fill_viridis_c(na.value = "transparent", option = "A", direction = -1,
+                       name = "log \n count") +
+  theme_void() +
+  theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+
+
+# Plot distribution of colony locations -----------------------------------
+
+# Count points per pixel
+colsize <- colony %>% 
+   mutate(total = avg_ad + avg_juv) %>% 
+   as("Spatial") %>% 
+   rasterize(y = omega, field = "total", fun='sum', background = 0)
+
+
+# Plot distribution of tracking locations
+counts_df <- as.data.frame(colsize, xy = T) %>% 
+   rename(size = layer) %>% 
+   mutate(size = if_else(size == 0, NA_real_, size),
+          log_size = log(size))
+
+ggplot() +
+   geom_sf(data = ssa_map_cp) +
+   geom_raster(data = counts_df, aes(x = x, y = y, fill = log_size)) +
+   geom_sf(data = ssa_map_cp, fill = NA) +
+   scale_fill_viridis_c(na.value = "transparent", option = "D", direction = -1,
+                      name = "log \n size") +
+   theme_void() +
+   theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+
+```
+
+
+## Cross-validation results
+
+```{r, eval=FALSE}
+
+library(dplyr)
+library(ggplot2)
+
+mytheme <- theme_bw() +
+   theme(panel.grid = element_blank(),
+         text = element_text(size = 15),
+         legend.text = element_text(size = 15),
+         legend.title = element_text(size = 15),
+         axis.text = element_text(size = 15),
+         plot.title = element_text(size = 15))
+
+
+# Cross-validation for step selection ------------------------------------
+
+# Directory where the cross-validation results are
+resultsdir <- "output/cv_results/ssf_cv/"
+
+# Load files
+files <- list.files(resultsdir, pattern = "cv_results_[1-9]t[1-2].rds")
+
+cv_results <- data.frame()
+
+for(i in seq_along(files)){
+   cv_results <- rbind(cv_results,
+                       readRDS(paste0(resultsdir, files[i])))
+}
+
+# For some groups we ran more than 10 rounds so we must subset the
+# first 10 to compare the same amount for all groups
+cv_results %>% 
+   group_by(mod) %>% 
+   slice(1:10) %>% 
+   summarize(mean = mean(cv_pi, na.rm = TRUE),
+             sd = sd(cv_pi, na.rm = TRUE),
+             n = n())
+
+cv_results %>% 
+   group_by(mod) %>% 
+   slice(1:10) %>% 
+   ungroup() %>% 
+   ggplot() +
+   geom_boxplot(aes(x = factor(mod), y = cv_pi)) +
+   geom_jitter(aes(x = factor(mod), y = cv_pi),
+               colour = "red", alpha = 0.5, width = 0.1) +
+   xlab("") + ylab("Spearman Rank Correlation") +
+   mytheme
+
+
+# Cross-validation for risk height ------------------------------------
+
+# Directory where the cross-validation results are
+resultsdir <- "output/cv_results/hgt_cv/"
+
+# Load files
+files <- list.files(resultsdir, pattern = "cv_results_height_[1-6].rds")
+
+cv_results <- data.frame()
+
+for(i in seq_along(files)){
+   cv_results <- rbind(cv_results,
+                       readRDS(paste0(resultsdir, files[i])))
+}
+
+cv_results %>% 
+   group_by(mod) %>% 
+   summarize(mean = mean(cv_auc, na.rm = TRUE),
+             sd = sd(cv_auc, na.rm = TRUE),
+             n = n())
+
+cv_results %>% 
+   ggplot() +
+   geom_boxplot(aes(x = factor(mod), y = cv_auc)) +
+   geom_jitter(aes(x = factor(mod), y = cv_auc),
+               colour = "red", alpha = 0.5, width = 0.1) +
+   xlab("") + ylab("AUC") +
+   mytheme
+
+
+```
+
+
+## Covariate effects plots
+
+```{r, eval=FALSE}
+
+library(dplyr)
+library(ggplot2)
+library(glmmTMB)
+library(khroma)
+
+mytheme <- theme_bw() +
+   theme(panel.grid = element_blank(),
+         text = element_text(size = 15),
+         legend.text = element_text(size = 15),
+         legend.title = element_text(size = 15),
+         axis.text = element_text(size = 15),
+         plot.title = element_text(size = 15))
+
+# Effects in step-selection -------------------------------------------
+
+# Model fit
+ssf_fit <- readRDS("../vultRmap_data_aux/ssf_fit_10pp.rds")
+ssf_fit_summ <- summary(ssf_fit)
+
+# Extract effects
+fit_effects <- ssf_fit_summ$coefficients$cond %>% 
+   as.data.frame() %>% 
+   mutate(name = rownames(.)) %>% 
+   rename_all(make.names) %>% 
+   rename_all(tolower)
+
+# Fix names
+names(fit_effects) <- str_replace_all(names(fit_effects), "\\.\\.", "\\.")
+names(fit_effects) <- str_replace_all(names(fit_effects), "\\.\\.", "\\.")
+names(fit_effects)
+
+# Adult effects
+ad_effects <- fit_effects %>% 
+   filter(!str_detect(name, "juv"))
+
+# Juvenile effects
+juv_effects <- fit_effects %>% 
+   filter(str_detect(name, "juv")) %>% 
+   mutate(name2 = str_remove(name, ":juv"))
+
+juv_effects <- ad_effects %>% 
+   left_join(juv_effects, by = c("name" = "name2")) %>% 
+   mutate(estimate.y = if_else(is.na(estimate.y), 0, estimate.y),
+          std.error.y = if_else(is.na(std.error.y), 0, std.error.y),
+          estimate = estimate.x + estimate.y,
+          std.error = sqrt(std.error.x^2 + std.error.y^2)) %>% 
+   dplyr::select(name, estimate, std.error)
+
+# All effects
+all_effects <- ad_effects %>% 
+   dplyr::select(name, estimate, std.error) %>% 
+   mutate(age = "ad") %>% 
+   rbind(juv_effects %>% 
+            dplyr::select(name, estimate, std.error) %>% 
+            mutate(age = "juv"))
+
+# Random effect variances
+rdm_sd <- ssf_fit_summ$varcor
+
+rdm_sd <- map_dbl(rdm_sd$cond, ~sqrt(.x))
+
+namesrdm <- map_chr(ssf_fit_summ$varcor$cond, ~rownames(.x))
+
+rdm_eff <- data.frame(name = namesrdm,
+                      sd = rdm_sd)
+
+
+all_effects <- all_effects %>% 
+   left_join(rdm_eff, by = "name")
+
+all_effects %>% 
+   mutate(var_fct = factor(name, levels = arrange(ad_effects, estimate) %>% pull(name))) %>% 
+   ggplot()+
+   geom_linerange(aes(xmin = estimate-1.96*std.error, xmax = estimate+1.96*std.error, y = var_fct, col = age),
+                  position = position_dodge(width = 0.5), lwd = 1.5) +
+   geom_pointrange(aes(x = estimate, xmin = estimate-sd, xmax = estimate+sd, y = var_fct, col = age),
+                   position = position_dodge(width = 0.5)) +
+   geom_vline(aes(xintercept = 0), linetype = 2) +
+   scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
+   scale_colour_highcontrast(name = "Age") +
+   xlab("") + ylab("") +
+   mytheme
+
+
+# Effects on risk height -------------------------------------------
+
+# Load risk height model fit
+hgt_fit <- readRDS("../vultRmap_data_aux/height_fit.rds")
+hgt_fit_summ <- summary(hgt_fit)
+
+# Extract effects
+fit_effects <- hgt_fit_summ$coefficients$cond %>% 
+   as.data.frame() %>% 
+   mutate(name = rownames(.)) %>% 
+   rename_all(make.names) %>% 
+   rename_all(tolower)
+
+# Fix names
+names(fit_effects) <- str_replace_all(names(fit_effects), "\\.\\.", "\\.")
+names(fit_effects) <- str_replace_all(names(fit_effects), "\\.\\.", "\\.")
+names(fit_effects)
+
+# Random effect variances
+rdm_sd <- hgt_fit_summ$varcor
+
+rdm_sd <- map_dbl(rdm_sd$cond, ~sqrt(.x))
+
+namesrdm <- map_chr(hgt_fit_summ$varcor$cond, ~rownames(.x))
+
+rdm_eff <- data.frame(name = namesrdm,
+                      sd = rdm_sd)
+
+fit_effects <- fit_effects %>% 
+   left_join(rdm_eff, by = "name")
+
+fit_effects %>% 
+   mutate(var_fct = factor(name, levels = arrange(fit_effects, estimate) %>% pull(name))) %>% 
+   ggplot()+
+   geom_linerange(aes(xmin = estimate-1.96*std.error, xmax = estimate+1.96*std.error, y = var_fct),
+                  position = position_dodge(width = 0.5), lwd = 1.5) +
+   geom_pointrange(aes(x = estimate, xmin = estimate-sd, xmax = estimate+sd, y = var_fct),
+                   position = position_dodge(width = 0.5)) +
+   geom_vline(aes(xintercept = 0), linetype = 2) +
+   scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
+   xlab("") + ylab("") +
+   mytheme
+
+```
+
+## Encounter hazard and risk in 2D
+
+```{r,eval=FALSE}
+library(dplyr)
+library(sf)
+library(raster)
+library(vultRmap)
+
+# Prepare buffer around EC colonies ---------------------------------------
+
+# Load colony data
+colony_all <- read.csv("../vultRmap_data_aux/colony_data.csv")
+
+# Filter those colonies we are interested in
+col_sel <- colony_all %>%
+   dplyr::filter(id %in% c("da_32", "da_65", "da_201", "da_75", "da_24",
+                           "da_9", "da_200", "da_38", "da_27", "da_239",
+                           "da_4", "cvcol669", "cvco719", "cvcol687", "cvcol589")) %>%
+   st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+# Create a 50 kilometer buffer
+sf_use_s2(FALSE)
+col_sel_buff <- col_sel %>%
+   st_combine() %>%
+   st_convex_hull() %>%
+   st_sf() %>%
+   st_buffer(dist = 0.4)
+
+col_sel_buff <- col_sel_buff %>%
+   st_union() %>%
+   st_sf()
+
+
+# Plot hazard and risk maps -----------------------------------------------
+
+# Set directory where .tif maps are stored
+mapdir <- "../vultRmap_data_aux/risk_maps/"
+
+# Define maps to plot and save
+maps <- paste0(c("hazard_", "hazard_hgt_",
+                 "risk_", "risk_hgt_"), "total")
+
+# For raster reclassification
+nlevels <- 10
+udlevels <- seq(0, 1, length.out = nlevels + 1)
+
+# Reclassify and trim all maps
+rr <- vector("list", length = length(maps))
+
+for(i in seq_along(maps)){
+   
+   # Reclassify
+   r <- raster::raster(paste0(mapdir, maps[i], ".tif"))
+   
+   # Remove 0.1% of activity to reduce mapping
+   cutoff <- 0.99
+   r[r < vultRmap::calcUDquantile(raster::values(r), cutoff)] <- NA
+   
+   # Reclassify
+   cut_points <- calcUDquantile(raster::values(r), udlevels)
+   rcl <- cbind(c(cut_points[-1], 0), cut_points, udlevels)
+   rcl_map <- reclassify(r, rcl)
+
+   # Remove outer NAs
+   rcl_map <- trim(rcl_map)
+   
+   # Save raster
+   rr[[i]] <- rcl_map
+   
+}
+   
+# Set all maps to the same extent
+exts <- lapply(rr, extent)
+ 
+f <- function(r, exts){
+   for(i in seq_along(exts)){
+      r <- extend(r, exts[[i]])
+   }
+   return(r)
+}
+   
+rr <- lapply(rr, f, exts)   
+
+# Crop ssa_map
+ssa_map <- st_crop(ssa_map, extent(rr[[1]]))
+
+# Plot
+rr <- stack(rr)
+names(rr) <- c("hazard_2D", "hazard_3D", "risk_2D", "risk_3D")
+rr <- as.data.frame(rr, xy = TRUE)
+
+# 2D maps
+rr %>% 
+   dplyr::select(-c(hazard_3D, risk_3D)) %>% 
+   pivot_longer(cols = -c("x", "y"), names_to = "map") %>% 
+   ggplot() +
+   geom_sf(data = ssa_map, fill = NA) +
+   geom_raster(aes(x = x, y = y, fill = value)) +
+   geom_sf(data = col_sel_buff, fill = "grey", linetype = "solid", alpha = 0.3) +
+   scale_fill_viridis_c(name = "", option = "inferno", direction = 1, na.value = NA) +
+   facet_wrap("map") +
+   xlab("") + ylab("") +
+   theme_bw() +
+   theme(axis.text = element_text(size = 8),
+         legend.text = element_text(size = 10),
+         strip.text = element_text(size = 10))
+   
+# 3D maps
+rr %>% 
+   dplyr::select(-c(hazard_2D, risk_2D)) %>% 
+   pivot_longer(cols = -c("x", "y"), names_to = "map") %>% 
+   ggplot() +
+   geom_sf(data = ssa_map, fill = NA) +
+   geom_raster(aes(x = x, y = y, fill = value)) +
+   geom_sf(data = col_sel_buff, fill = "grey", linetype = "solid", alpha = 0.3) +
+   scale_fill_viridis_c(name = "", option = "inferno", direction = 1, na.value = NA) +
+   facet_wrap("map") +
+   xlab("") + ylab("") +
+   theme_bw() +
+   theme(axis.text = element_text(size = 8),
+         legend.text = element_text(size = 10),
+         strip.text = element_text(size = 10))
+
+
+
+```
+

@@ -24,6 +24,8 @@ Some of the processing and fitting scripts take quite long to run. Therefore, ru
 
 Note, paths to specific directories where data or outputs are hosted, need to be adapted to the user configuration.
 
+## Pre-processing of tracking and colony data
+
 ```{r, eval=FALSE}
 
 library(tidyverse)
@@ -39,7 +41,7 @@ scripts <- scripts[str_detect(scripts, "0", negate = T)]
 ```
 
 
-## Run processing scripts for specific birds
+### Run processing scripts for specific birds
 
 The objective of the data processing scripts is to bring all bird-tracking files
 to a common standard. Different types of tags have their own characteristics, and
@@ -69,7 +71,7 @@ source("R/1_data_processing/3_fine_process.R")
 ```
 
 
-## Prepare colony data
+### Prepare colony data
 
 The colony data-processing scripts are used for bringing together colony data from
 different sources and format them to a common standard. This entails finding
@@ -105,7 +107,7 @@ source("R/1_data_processing/4_colony_process.R")
 ```
 
 
-## Find movement modes
+### Find movement modes
 
 For some of the analysis we are interested in those tracking fixes that correspond
 to moving birds. To separate movement from resting modes, we used either
@@ -120,7 +122,7 @@ source("R/1_data_processing/5_move_mode_process.R")
 ```
 
 
-## Prepare raster covariates
+### Prepare raster covariates
 
 In this scripts we will prepare the covariates used for fitting the step-selection
 and collision height model.
@@ -160,7 +162,7 @@ source("R/3_prepare_covts/6_prep_covts_restaurants.R")
 ```
 
 
-## Run additional tracking data height processing scripts
+### Run additional tracking data height processing scripts
 
 Some tracking tags had heights wrap down to zero when they went above 2042. To
 correct this and other issues producing nonsensical outliers we run the following
@@ -183,7 +185,7 @@ source("R/1_data_processing/7_dist_process.R")
 ```
 
 
-## Create a database and prepare model-fitting data
+### Create a database and prepare model-fitting data
 
 ```{r, eval=FALSE}
 

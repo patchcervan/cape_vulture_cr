@@ -23,6 +23,8 @@ with care.
 Note, paths to specific directories where data or outputs are hosted,
 need to be adapted to the user configuration.
 
+## Pre-processing of tracking and colony data
+
 ``` r
 library(tidyverse)
 
@@ -35,7 +37,7 @@ scripts <- dir("R/1_data_processing")
 scripts <- scripts[str_detect(scripts, "0", negate = T)]
 ```
 
-## Run processing scripts for specific birds
+### Run processing scripts for specific birds
 
 The objective of the data processing scripts is to bring all
 bird-tracking files to a common standard. Different types of tags have
@@ -63,7 +65,7 @@ for(f in 1:length(proc)){
 source("R/1_data_processing/3_fine_process.R")
 ```
 
-## Prepare colony data
+### Prepare colony data
 
 The colony data-processing scripts are used for bringing together colony
 data from different sources and format them to a common standard. This
@@ -94,7 +96,7 @@ what colonies each of the tracked vultures are using each year.
 source("R/1_data_processing/4_colony_process.R")
 ```
 
-## Find movement modes
+### Find movement modes
 
 For some of the analysis we are interested in those tracking fixes that
 correspond to moving birds. To separate movement from resting modes, we
@@ -108,7 +110,7 @@ explore state proportions and things like that. Do it manually.
 source("R/1_data_processing/5_move_mode_process.R")
 ```
 
-## Prepare raster covariates
+### Prepare raster covariates
 
 In this scripts we will prepare the covariates used for fitting the
 step-selection and collision height model.
@@ -145,7 +147,7 @@ source("R/3_prepare_covts/5a_red_dist_slp_m.R")
 source("R/3_prepare_covts/6_prep_covts_restaurants.R")
 ```
 
-## Run additional tracking data height processing scripts
+### Run additional tracking data height processing scripts
 
 Some tracking tags had heights wrap down to zero when they went above
 2042. To correct this and other issues producing nonsensical outliers we
@@ -166,7 +168,7 @@ the species in general.
 source("R/1_data_processing/7_dist_process.R")
 ```
 
-## Create a database and prepare model-fitting data
+### Create a database and prepare model-fitting data
 
 ``` r
 # Create a database with the new information extracted from the birds
