@@ -294,25 +294,43 @@ col_counts %>%
                            if_else(is.na(pairs), n_nests*2, pairs*2),
                            ad))
    
-   # What proportion of juveniles with respect to adults
+   # What proportion of adults with respect to total
    col_counts %>% 
-      filter(!is.na(ad_p), !is.na(juv)) %>% 
-      mutate(juv_prop = juv / ad) %>% 
-      pull(juv_prop) %>% 
-      hist()
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       mutate(ad_prop = ad / (ad + juv)) %>% 
+       pull(ad_prop) %>% 
+       hist()
    
-   # What proportion of juveniles with respect to total
+   # What proportion of adults with respect to total
    col_counts %>% 
-      filter(!is.na(ad_p), !is.na(juv)) %>% 
-      mutate(juv_prop = juv / (juv + ad)) %>% 
-      pull(juv_prop) %>% 
-      hist()
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       mutate(ad_prop = ad / (ad + juv)) %>% 
+       pull(ad_prop) %>% 
+       median(na.rm = T)
+   
+   # What proportion of adults with respect to total
+   col_counts %>% 
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       mutate(ad_prop = ad / (ad + juv)) %>% 
+       pull(ad_prop) %>% 
+       mean(na.rm = T)
+   
+   # What proportion of adults with respect to total
+   col_counts %>% 
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       mutate(ad_prop = ad / (juv + ad)) %>% 
+       pull(ad_prop)  %>% sd(na.rm = T)
+   
+   # How many colonies had counts for juveniles?
+   col_counts %>% 
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       nrow()
    
    col_counts %>% 
-      filter(!is.na(ad_p), !is.na(juv)) %>% 
-      mutate(juv_prop = juv / (ad + juv)) %>%
-      ggplot() +
-      geom_point(aes(x = ad_p, y = juv_prop))
+       filter(!is.na(ad_p), !is.na(juv)) %>% 
+       mutate(juv_prop = juv / (ad + juv)) %>%
+       ggplot() +
+       geom_point(aes(x = ad + juv, y = juv_prop))
    
    # According to our very basic life-history model, in a steady state,
    # there should be 70% of adults and 30% juveniles (ages 1 to 4).

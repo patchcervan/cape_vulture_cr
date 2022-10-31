@@ -92,7 +92,7 @@ for(i in 1:9){
             # trasmitter id
             tag_id = tag_id,
             # tag model
-            tag_type = "GMS/GPS(?)",
+            tag_type = "Argos-GPS PTT-100 Microwave Telemetry",
             # Speed units
             spd_units = as.character("km/h"),
             # unique bird identifier - 2 first letters of provider, plus 2 numbers
@@ -118,7 +118,11 @@ for(i in 1:9){
             # mean sampling rate (hours)
             avg_dt = NA,
             # standard deviation of sampling rate (hours)
-            sd_dt = NA ) %>% 
+            sd_dt = NA,
+            # Wild/rehab bird
+            rehab = 0,
+            # Accuracy as per manufacturer (m)
+            accu = 10) %>% 
         select(colnames(bird_db))
     
     saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))

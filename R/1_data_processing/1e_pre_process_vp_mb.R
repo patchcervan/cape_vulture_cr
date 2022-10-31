@@ -86,7 +86,7 @@ for(i in 1:7){
             # trasmitter id
             tag_id = tag_id,
             # tag model
-            tag_type = "GPS",
+            tag_type = "GPS-GSM e-obs",
             # Speed units
             spd_units = as.character("km/h"),
             # unique bird identifier - 2 first letters of provider, plus 2 numbers
@@ -112,7 +112,11 @@ for(i in 1:7){
             # mean sampling rate (hours)
             avg_dt = NA,
             # standard deviation of sampling rate (hours)
-            sd_dt = NA ) %>% 
+            sd_dt = NA,
+            # Wild/rehab bird
+            rehab = ifelse(dat_summary$`Wild/Rehab`[i] == "Rehab", 1, 0),
+            # Accuracy as per manufacturer (m)
+            accu = NA) %>% 
         select(colnames(bird_db))
     
     saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))

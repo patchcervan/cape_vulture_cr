@@ -52,98 +52,104 @@ dir("data/working/pre_proc_data/temp_ma")
 
 for(i in 1:length(dir("data/working/pre_proc_data/temp_ma"))){
     
-new_trk <- read_rds(paste("data/working/pre_proc_data/temp_ma/",
-                          dir("data/working/pre_proc_data/temp_ma")[i], sep = ""))
-
-bird_name <- if_else(i == 1, "Marie", unique(new_trk$bird_name))
-dat_summary
-
-index <- which(str_detect(dat_summary$AnimalID, bird_name))
-
-bird_id <- if(index < 10) paste0("ma0", index) else paste0("ma", index)
-
-
-# Check template columns and new bird columns
-colnames(bird_trk)
-colnames(new_trk)
-
-# Fix Date column to be POSIXct variable
-new_trk$timestamp <- str_sub(new_trk$timestamp, end = -5)
-
-new_trk$`timestamp` <- as.POSIXct(new_trk$`timestamp`, tz = "GMT")
-
-# Create variables to match template.
-new_trk <- new_trk %>% 
-    mutate(bird_id = bird_id,    # create identifier for the bird
-           tag_id = as.character(`tag.local.identifier`),
-           datetime = timestamp) %>% 
-    arrange(datetime) %>%       # Sort data by date before computing dt
-    mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
-           lon = as.double(`location.long`),
-           lat = as.double(`location.lat`),
-           alt = as.double(`height.above.ellipsoid`),
-           heading = as.double(heading),
-           spd_h = as.double(`ground.speed`), # ASSUMING THAT SPEED IS IN 2D?
-           spd_v = NA, spd_3d = NA, 
-           error_h = as.double(`eobs.horizontal.accuracy.estimate`),
-           error_v = NA, 
-           error_3d = as.double(`gps.dop`)) %>% 
-    select(colnames(bird_trk))
-
-saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
-
-
-# Fill in track template --------------------------------------------------
-
-unique(new_trk$tag_id)
-dat_summary
-
-# Fix age and sex
-age <- dat_summary$Age[index]
-age <- if_else(age == "First year", "juv","ad")
-
-sex <- if_else(is.na(dat_summary$SexMDS[index]), 
-               dat_summary$SuspectedSex[index], 
-               dat_summary$SexMDS[index]) %>% 
-    tolower()
-
-sex <- if(is.na(sex)) "unknown" else sex
-
-
-new_db <- dat_summary %>% 
-    filter(str_detect(dat_summary$AnimalID, bird_name)) %>% 
-    mutate(
-        # trasmitter id
-        tag_id = as.character(TransmitterID),
-        # tag model
-        tag_type = "e-obs_GPS/GSM",
-        # Speed units
-        spd_units = as.character("km/h"),
-        # unique bird identifier - 2 first letters of provider, plus 2 numbers
-        bird_id = as.character(bird_id),
-        # ring id
-        ring_id = RingNo,
-        # capture date
-        date_start = date(new_trk$datetime[1]),
-        # date of last location
-        date_end = NA,
-        # name of the bird
-        name = as.character(bird_name),
-        
-        # bird age when caught - factor with levels:juvenile, sub-adult, adult and unknown
-        age = factor(age, levels = c("juv", "subad", "ad", "unknown")),
-        # bird sex - factor with levels:male, female and unknown
-        sex = factor(sex,levels = c("male", "female", "unknown")),
-        
-        # number of locations in raw data
-        nloc_pre = as.double(nrow(new_trk)),
-        # number of locations in processed data
-        nloc_post = NA,
-        # mean sampling rate (hours)
-        avg_dt = NA,
-        # standard deviation of sampling rate (hours)
-        sd_dt = NA ) %>% 
-    select(colnames(bird_db))
-
-saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
+    new_trk <- read_rds(paste("data/working/pre_proc_data/temp_ma/",
+                              dir("data/working/pre_proc_data/temp_ma")[i], sep = ""))
+    
+    bird_name <- if_else(i == 1, "Marie", unique(new_trk$bird_name))
+    dat_summary
+    
+    index <- which(str_detect(dat_summary$AnimalID, bird_name))
+    
+    bird_id <- if(index < 10) paste0("ma0", index) else paste0("ma", index)
+    
+    
+    # Check template columns and new bird columns
+    colnames(bird_trk)
+    colnames(new_trk)
+    
+    # Fix Date column to be POSIXct variable
+    new_trk$timestamp <- str_sub(new_trk$timestamp, end = -5)
+    
+    new_trk$`timestamp` <- as.POSIXct(new_trk$`timestamp`, tz = "GMT")
+    
+    # Create variables to match template.
+    new_trk <- new_trk %>% 
+        mutate(bird_id = bird_id,    # create identifier for the bird
+               tag_id = as.character(`tag.local.identifier`),
+               datetime = timestamp) %>% 
+        arrange(datetime) %>%       # Sort data by date before computing dt
+        mutate(dt = as.double(difftime(lead(datetime), datetime, units = "hour")),
+               lon = as.double(`location.long`),
+               lat = as.double(`location.lat`),
+               alt = as.double(`height.above.ellipsoid`),
+               heading = as.double(heading),
+               spd_h = as.double(`ground.speed`), # ASSUMING THAT SPEED IS IN 2D?
+               spd_v = NA, spd_3d = NA, 
+               error_h = as.double(`eobs.horizontal.accuracy.estimate`),
+               error_v = NA, 
+               error_3d = as.double(`gps.dop`)) %>% 
+        select(colnames(bird_trk))
+    
+    saveRDS(new_trk, file = paste("data/working/pre_proc_data/trk_", bird_id,"_pp.rds", sep = ""))
+    
+    
+    # Fill in track template --------------------------------------------------
+    
+    unique(new_trk$tag_id)
+    dat_summary
+    
+    # Fix age and sex
+    age <- dat_summary$Age[index]
+    age <- if_else(age == "First year", "juv","ad")
+    
+    sex <- if_else(is.na(dat_summary$SexMDS[index]), 
+                   dat_summary$SuspectedSex[index], 
+                   dat_summary$SexMDS[index]) %>% 
+        tolower()
+    
+    sex <- if(is.na(sex)) "unknown" else sex
+    
+    accu_sel <- round(mean(new_trk$error_h, na.rm = TRUE), 1)
+    
+    
+    new_db <- dat_summary %>% 
+        filter(str_detect(dat_summary$AnimalID, bird_name)) %>% 
+        mutate(
+            # trasmitter id
+            tag_id = as.character(TransmitterID),
+            # tag model
+            tag_type = "GPS-GSM e-obs",
+            # Speed units
+            spd_units = as.character("km/h"),
+            # unique bird identifier - 2 first letters of provider, plus 2 numbers
+            bird_id = as.character(bird_id),
+            # ring id
+            ring_id = RingNo,
+            # capture date
+            date_start = date(new_trk$datetime[1]),
+            # date of last location
+            date_end = NA,
+            # name of the bird
+            name = as.character(bird_name),
+            
+            # bird age when caught - factor with levels:juvenile, sub-adult, adult and unknown
+            age = factor(age, levels = c("juv", "subad", "ad", "unknown")),
+            # bird sex - factor with levels:male, female and unknown
+            sex = factor(sex,levels = c("male", "female", "unknown")),
+            
+            # number of locations in raw data
+            nloc_pre = as.double(nrow(new_trk)),
+            # number of locations in processed data
+            nloc_post = NA,
+            # mean sampling rate (hours)
+            avg_dt = NA,
+            # standard deviation of sampling rate (hours)
+            sd_dt = NA,
+            # Wild/rehab bird
+            rehab = 0,
+            # Accuracy as per manufacturer (m)
+            accu = accu_sel) %>%
+        select(colnames(bird_db))
+    
+    saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
 }

@@ -18,6 +18,8 @@ scripts <- scripts[str_detect(scripts, "0", negate = T)]
 
 proc <- scripts[1:18]
 
+# proc <- scripts[1:2]
+
 for(f in 1:length(proc)){
     
     # Need to reload because of the rm functions in the scripts

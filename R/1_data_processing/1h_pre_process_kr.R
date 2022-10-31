@@ -74,7 +74,7 @@ new_db <- tibble(
     # trasmitter id
     tag_id = tag_id,
     # tag model
-    tag_type = "GPS_Microwave_Telemetry",
+    tag_type = "Argos-GPS PTT-100 Microwave Telemetry",
     # Speed units
     spd_units = "km/h",
     # unique bird identifier - 2 first letters of provider, plus 2 numbers
@@ -98,8 +98,11 @@ new_db <- tibble(
     # mean sampling rate (hours)
     avg_dt = NA,
     # standard deviation of sampling rate (hours)
-    sd_dt = NA
-)
+    sd_dt = NA,
+    # Wild/rehab bird
+    rehab = 0,
+    # Accuracy as per manufacturer (m)
+    accu = 10)
 
 for(i in 1:length(bird_id)){
     new_db %>% 

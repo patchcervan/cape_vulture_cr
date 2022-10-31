@@ -31,7 +31,7 @@ for(i in 2:10){
     
     # Set bird id
     tag_id <- unique(new_trk$Id)
-        
+    
     if(tag_id == 57355) next
     
     bird_id <- paste("ez0", dat_summary$`Bird #`[which(dat_summary$`PTT id` == unique(new_trk$Id))], sep = "")
@@ -77,6 +77,14 @@ for(i in 2:10){
     
     sex <- dat_summary$Sex[index] %>% tolower()
     
+    tag_type_sel <- dplyr::case_when(bird_id == "ez02" ~ "GPS-GSM Africa Wildlife Tracking",
+                                     bird_id == "ez05" ~ "GPS North Star",
+                                     TRUE ~ "Argos-GPS PTT-100 Microwave Telemetry")
+    
+    accu_sel <- dplyr::case_when(bird_id == "ez02" ~ 10,
+                                 bird_id == "ez05" ~ 15,
+                                 TRUE ~ 18)
+    
     
     new_db <- dat_summary %>% 
         filter(`PTT id` == unique(new_trk$tag_id)) %>% 
@@ -84,7 +92,7 @@ for(i in 2:10){
             # trasmitter id
             tag_id = as.character(`PTT id`),
             # tag model
-            tag_type = as.character(`Type of data`),
+            tag_type = tag_type_sel,
             # Speed units
             spd_units = as.character("km/h"),
             # unique bird identifier - 2 first letters of provider, plus 2 numbers
@@ -110,9 +118,13 @@ for(i in 2:10){
             # mean sampling rate (hours)
             avg_dt = NA,
             # standard deviation of sampling rate (hours)
-            sd_dt = NA ) %>% 
+            sd_dt = NA,
+            # Wild/rehab bird
+            rehab = 0,
+            # Accuracy as per manufacturer (m)
+            accu = accu_sel) %>% 
         select(colnames(bird_db))
     
     saveRDS(new_db, file = paste("data/working/pre_proc_data/db_", bird_id,"_pp.rds", sep = ""))
-
+    
 }

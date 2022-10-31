@@ -43,7 +43,11 @@ bird_db <- tibble(
     # mean sampling rate (hours)
     avg_dt = double(),
     # standard deviation of sampling rate (hours)
-    sd_dt = double()
+    sd_dt = double(),
+    # wild or rehabilitated bird
+    rehab = integer(),
+    # Accuracy as per manufacturer
+    accu = double()
 )
 
 # Save template
