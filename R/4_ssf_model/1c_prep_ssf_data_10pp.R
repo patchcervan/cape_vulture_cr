@@ -413,7 +413,7 @@ model_data <- model_data %>%
 model_data <- nest(model_data, data = -c(bird_id))
 
 # Function to define trips from the central colony
-f <- function(trk){
+f <- function(trk, min_dist = 5e3){
    
    trk <- trk %>% 
       mutate(date = lubridate::date(t2_))
@@ -421,7 +421,7 @@ f <- function(trk){
    trips <- trk %>% 
       group_by(date) %>% 
       summarize(mindist = min(dist_col)) %>% 
-      mutate(at_col = if_else(mindist <= 5e3, 1, 0))
+      mutate(at_col = if_else(mindist <= min_dist, 1, 0))
    
    trips$trip <- trips$at_col
    
