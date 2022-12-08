@@ -2,7 +2,7 @@
 title: "Figures for paper"
 author: "Pachi Cervantes"
 date: "25/03/2022"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -13,15 +13,15 @@ knitr::opts_chunk$set(echo = TRUE)
 # Figures for paper
 
 In this section we show how to reproduce the figures contained in the paper
-"A spatially explicit encounter risk model for the Cape Vulture Gyps coprotheres
-to guide wind energy development". To create these figures we will need the data
-used for the analysis, which contains sensitive information, and therefore will 
+"A utilization distribution for the global population of Cape Vultures *Gyps coprotheres* to guide wind energy development". 
+To create these figures we will need the data used for the analysis, which contains sensitive information, and therefore will 
 be made available by request only.
 
 The first two figures of the paper are not code-based and therefore we don't 
 reproduce them here.
 
-## Spatial distribution of tracking and colony data
+
+## Fig 3. Spatial distribution of tracking and colony data
 
 ```{r, eval=FALSE}
 
@@ -73,8 +73,11 @@ ssa_map_cp <- st_crop(ssa_map, y = ext)
 
 # Plot distribution of tracking locations ---------------------------------
 
-# Count points per pixel
-counts <- rasterize(ssfdata[,c("lon1_", "lat1_")], omega, fun='count', background = 0)
+# Count observations per pixel (only data not pseudo-absences)
+counts <- ssf_data %>% 
+    filter(case_ == TRUE) %>% 
+    dplyr::select(lon1_, lat1_) %>% 
+    rasterize(omega, fun='count', background = 0)
 
 counts_df <- as.data.frame(counts, xy = T) %>% 
   rename(count = layer) %>% 
@@ -118,7 +121,7 @@ ggplot() +
 ```
 
 
-## Cross-validation results
+## Fig 4. Cross-validation results
 
 ```{r, eval=FALSE}
 
@@ -203,7 +206,7 @@ cv_results %>%
 ```
 
 
-## Covariate effects plots
+## Fig 5. Covariate effects plots
 
 ```{r, eval=FALSE}
 
@@ -336,7 +339,7 @@ fit_effects %>%
 
 ```
 
-## Encounter hazard and risk in 2D
+## Fig 6. Utilization distribution and population utilization distribution in 2D
 
 ```{r,eval=FALSE}
 library(dplyr)
@@ -375,8 +378,7 @@ col_sel_buff <- col_sel_buff %>%
 mapdir <- "../vultRmap_data_aux/risk_maps/"
 
 # Define maps to plot and save
-maps <- paste0(c("hazard_", "hazard_hgt_",
-                 "risk_", "risk_hgt_"), "total")
+maps <- paste0(c("hazard_", "risk_"), "total")
 
 # For raster reclassification
 nlevels <- 10
@@ -390,17 +392,12 @@ for(i in seq_along(maps)){
    # Reclassify
    r <- raster::raster(paste0(mapdir, maps[i], ".tif"))
    
-   # Remove 0.1% of activity to reduce mapping
-   cutoff <- 0.99
-   r[r < vultRmap::calcUDquantile(raster::values(r), cutoff)] <- NA
+   # Remove 0.1% of activity to reduce mapping and reclassify
+   rcl_map <- vultRmap::makeBinnedRasterMap(r, nlevels = 10, cutoff = 0.99)
    
-   # Reclassify
-   cut_points <- vultRmap::calcUDquantile(raster::values(r), udlevels)
-   rcl <- cbind(c(cut_points[-1], 0), cut_points, udlevels)
-   rcl_map <- reclassify(r, rcl)
-
-   # Remove outer NAs
-   rcl_map <- trim(rcl_map)
+   # Crop map to remove outer NAs
+   frame <- extent(c(12, 40, -37, -17))
+   rcl_map <- crop(rcl_map, frame)
    
    # Save raster
    rr[[i]] <- rcl_map
@@ -424,51 +421,36 @@ ssa_map <- st_crop(ssa_map, extent(rr[[1]]))
 
 # Plot
 rr <- stack(rr)
-names(rr) <- c("hazard_2D", "hazard_3D", "risk_2D", "risk_3D")
+names(rr) <- c("UD_2D","PUD_2D")
 rr <- as.data.frame(rr, xy = TRUE)
 
 # 2D maps
 rr %>% 
-   dplyr::select(-c(hazard_3D, risk_3D)) %>% 
-   pivot_longer(cols = -c("x", "y"), names_to = "map") %>% 
-   ggplot() +
-   geom_sf(data = ssa_map, fill = NA) +
-   geom_raster(aes(x = x, y = y, fill = value)) +
-   geom_sf(data = col_sel_buff, fill = "grey", linetype = "solid", alpha = 0.3) +
-   scale_fill_viridis_c(name = "", option = "inferno", direction = 1, na.value = NA) +
-   facet_wrap("map") +
-   xlab("") + ylab("") +
-   theme_bw() +
-   theme(axis.text = element_text(size = 8),
-         legend.text = element_text(size = 10),
-         strip.text = element_text(size = 10))
-   
-# 3D maps
-rr %>% 
-   dplyr::select(-c(hazard_2D, risk_2D)) %>% 
-   pivot_longer(cols = -c("x", "y"), names_to = "map") %>% 
-   ggplot() +
-   geom_sf(data = ssa_map, fill = NA) +
-   geom_raster(aes(x = x, y = y, fill = value)) +
-   geom_sf(data = col_sel_buff, fill = "grey", linetype = "solid", alpha = 0.3) +
-   scale_fill_viridis_c(name = "", option = "inferno", direction = 1, na.value = NA) +
-   facet_wrap("map") +
-   xlab("") + ylab("") +
-   theme_bw() +
-   theme(axis.text = element_text(size = 8),
-         legend.text = element_text(size = 10),
-         strip.text = element_text(size = 10))
-
+    dplyr::select(x, y, UD_2D, PUD_2D) %>% 
+    tidyr::pivot_longer(cols = -c("x", "y"), names_to = "map") %>% 
+    mutate(map = factor(map, levels = unique(map), 
+                        labels = paste("2-D", c("utilization", "population"), "distribution"))) %>% 
+    ggplot() +
+    geom_raster(aes(x = x, y = y, fill = value)) +
+    geom_sf(data = col_sel_buff, fill = "grey", linetype = "solid", alpha = 0.3) +
+    geom_sf(data = ssa_map, fill = NA, size = 0.05) +
+    scale_fill_viridis_c(name = "", option = "inferno", direction = 1, na.value = NA) +
+    facet_wrap("map") +
+    xlab("") + ylab("") +
+    theme_bw() +
+    theme(axis.text = element_text(size = 8),
+          legend.text = element_text(size = 10),
+          strip.text = element_text(size = 10))
 
 
 ```
 
 
-## SABAP2 vs risk
+## Fig 7 and Fig 8. SABAP2 vs population utilization distribution
 
 ```{r, eval=FALSE}
 
-library(ABAP)
+library(ABAP) # To install ABAP remotes::install_github("AfricaBirdData/ABAP")
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -480,7 +462,7 @@ rm(list = ls())
 
 ABAP::searchAbapSpecies("vulture")
 
-cv_sabap_sa <- getSabapData(.spp_code = 106, .region_type = "country",
+cv_sabap_sa <- getAbapData(.spp_code = 106, .region_type = "country",
                          .region = "South Africa")
 
 cv_sabap_sa %>% 
@@ -490,10 +472,11 @@ cv_sabap_sa %>%
 
 cvRepRate <- function(region){
    
-   cv_sabap <- getSabapData(.spp_code = 106, .region_type = "country",
+   cv_sabap <- getAbapData(.spp_code = 106, .region_type = "country",
                             .region = region)
    
-   pentads <- SABAP::pentads_sabap
+   pentads <- ABAP::getRegionPentads(.region_type = "country",
+                                     .region = region)
    
    # Calculate reporting rate
    reprate <- cv_sabap %>% 
@@ -532,47 +515,25 @@ plot(pentads_cv["rep_rate"], lwd = 0.1)
 pentads_cv <- pentads_cv %>% 
    filter(effort > 4)
 
+# Load PUD map
+risk <- raster("../vultRmap_data_aux/risk_maps/risk_total.tif")
 
-# Load risk map
-risk <- raster("../vultRmap/analysis/output/risk_maps/risk_total.tif")
+# Reclassify raster into cumulative PUD
+rcl_risk <- vultRmap::makeBinnedRasterMap(risk, nlevels = 100, cutoff = 1)
 
-# Reclassify raster
-nlevels <- 10
-udlevels <- seq(0, 1, length.out = nlevels + 1)
-
-cut_points <- rev(vultRmap::calcUDquantile(raster::values(risk), udlevels))
-rcl <- cbind(c(0, cut_points[-11]), cut_points, udlevels)
-rcl_risk <- reclassify(risk, rcl)
+# Crop map
+frame <- extent(c(15, 40, -37, -17))
+rcl_risk <- crop(rcl_risk, frame)
 
 # Extract risk values
-pentads_risk <- exactextractr::exact_extract(rcl_risk, st_zm(pentads_cv),
-                                             "mean")
+pentads_risk <- exactextractr::exact_extract(rcl_risk, st_zm(pentads_cv), "mean")
 
-pentads_cv$risk <- pentads_risk
+pentads_cv$risk <- exactextractr::exact_extract(risk, st_zm(pentads_cv), "mean")
+
+pentads_cv$cum_risk <- pentads_risk
 
 
 # Plots -------------------------------------------------------------------
-
-
-pentads_cv %>% 
-   dplyr::select(rep_rate, risk, effort) %>% 
-   mutate(effort = log(effort)) %>% 
-   plot(lwd = 0.1)
-
-pentads_cv %>% 
-   st_drop_geometry() %>% 
-   filter(!is.na(risk)) %>% 
-   mutate(pest = 1 - (1 -0.01)^risk) %>% 
-   summarize(pears = cor(rep_rate, risk),
-             spear = cor(rep_rate, risk , method = "spearman"),
-             pest_cor = cor(rep_rate, pest))
-
-
-pentads_cv %>% 
-   st_drop_geometry() %>% 
-   filter(!is.na(risk)) %>% 
-   ggplot() +
-   geom_point(aes(x = rep_rate, y = risk))
 
 # Load SA background (download South Africa map with Lesotho and Swaziland)
 ssa_map <- rnaturalearth::ne_countries(scale = 50, continent = "Africa", returnclass = "sf") %>% 
@@ -581,68 +542,104 @@ ssa_map <- rnaturalearth::ne_countries(scale = 50, continent = "Africa", returnc
 ssa_map <- ssa_map %>% 
    st_crop(pentads_cv)
 
-# Plot SABAP vs. risk
-legend_names <- c("Rep. rate", "Risk")
-pp <- rbind(pentads_cv %>% 
-         mutate(param = "rep_rate") %>% 
-         rename(value = rep_rate) %>% 
-         dplyr::select(Name, param, value),
-      pentads_cv %>% 
-         mutate(param = "risk") %>% 
-         rename(value = risk) %>% 
-         dplyr::select(Name, param, value)) %>% 
-   group_split(param) %>% 
-   map2(., legend_names, ~ggplot(data = .x) +
-          geom_sf(data = ssa_map, fill = "grey") +
-          geom_sf(aes(fill = value), size = 0.01) +
-          scale_fill_viridis_c(name = .y, option = "C", direction = 1) +
-          theme_classic() +
-          theme(axis.text = element_blank(),
-                axis.ticks = element_blank(),
-                axis.title = element_blank(),
-                axis.line = element_blank())#,
-                # legend.position = "none")
-   )
+# Plot SABAP vs. cumPUD
+legend_names <- c(expression("cumPUD"), "RepRate")
 
-sabapplot <- gridExtra::arrangeGrob(pp[[1]], pp[[2]], ncol = 2)
-   
-plot(sabapplot)
+pp <- pentads_cv %>% 
+    mutate(pd = risk,
+           log_pd = log(pd+0.1)) %>% 
+    dplyr::select(Name, rep_rate, cum_risk) %>% 
+    tidyr::pivot_longer(cols = -c(Name, geometry),
+                        names_to = "param",
+                        values_to = "value") %>% 
+    group_split(param) %>% 
+    map2(., legend_names, ~ggplot(data = .x) +
+             geom_sf(data = ssa_map, fill = "grey") +
+             geom_sf(aes(fill = value), size = NA) +
+             scale_fill_viridis_c(name = .y, option = "C", direction = 1) +
+             theme_classic() +
+             theme(axis.text = element_blank(),
+                   axis.ticks = element_blank(),
+                   axis.title = element_blank(),
+                   axis.line = element_blank())#,
+         # legend.position = "none")
+    )
+
+comp_pud <- pentads_cv %>% 
+    mutate(pd = risk,
+           log_pd = log(pd+0.1)) %>% 
+    dplyr::select(Name, rep_rate, cum_risk) %>% 
+    ggplot() +
+    geom_sf(data = ssa_map, fill = "grey") +
+    geom_sf(aes(fill = cum_risk), size = NA) +
+    scale_fill_viridis_c(name = legend_names[1], option = "C", direction = -1) +
+    theme_classic() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          axis.line = element_blank())
+
+comp_rr <- pentads_cv %>% 
+    mutate(pd = risk,
+           log_pd = log(pd+0.1)) %>% 
+    dplyr::select(Name, rep_rate, cum_risk) %>% 
+    ggplot() +
+    geom_sf(data = ssa_map, fill = "grey") +
+    geom_sf(aes(fill = rep_rate), size = NA) +
+    scale_fill_viridis_c(name = legend_names[2], option = "C", direction = 1) +
+    theme_classic() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          axis.line = element_blank())
+
+gridExtra::grid.arrange(comp_pud, comp_rr, ncol = 2)
 
 
 # Fit binomial model ------------------------------------------------------
 
-lm <- glm(cbind(det1, det0) ~ risk, family = "binomial",
-          data = st_drop_geometry(pentads_cv))
+lm1 <- glm(rep_rate ~ cum_risk, family = "binomial", weights = effort,
+           data = pentads_cv)
 
-summary(lm)
+summary(lm1)
 
-pred <- predict(lm, se.fit = TRUE, type = "link")
+# Predict for data
+est <- predict(lm1, se.fit = TRUE, type = "link")
+
 
 invLogit <- function(x){
-   exp(x) / (1 + exp(x))
+    exp(x) / (1 + exp(x))
 }
 
-pentads_cv %>% 
-   st_drop_geometry() %>% 
-   filter(!is.na(risk)) %>% 
-   mutate(glm_fit = lm$fitted.values,
-          ub = invLogit(pred[[1]] + 1.96*pred[[2]]),
-          lb = invLogit(pred[[1]] - 1.96*pred[[2]])) %>% 
-   ggplot() +
-   geom_point(aes(x = risk, y = rep_rate), alpha = 0.5) +
-   geom_line(aes(x = risk, y = glm_fit), col = "red", size = 1) +
-   geom_line(aes(x = risk, y = ub), col = "red", linetype = "dashed") +
-   geom_line(aes(x = risk, y = lb), col = "red", linetype = "dashed") +
-   ylab("SABAP2 reporting rate") + xlab("Risk") +
-   theme_classic() +
-   theme(axis.text = element_text(size = 10),
-         axis.title = element_text(size = 12))
+# Add prediction interval
+source("R/functions/simulateBinomPI.R")
+
+newdata <- data.frame(cum_risk = seq(min(pentads_cv$cum_risk, na.rm = T), 1, length.out = 1000),
+                      rep_rate = runif(1000, 0, 1),
+                      effort = 100,
+                      weights = 100)
+
+preds <- simulateBinomPi(df = newdata,
+                         fit = lm1,
+                         names = c("lpb", "upb"),
+                         alpha = 0.1,
+                         nSims = 1000)
+
+preds %>%
+    ggplot() +
+    geom_point(data = pentads_cv, aes(x = cum_risk, y = rep_rate), alpha = 0.5) +
+    geom_line(aes(x = cum_risk, y = pred), col = "red", size = 1) +
+    geom_ribbon(aes(x = cum_risk, ymin = lpb, ymax = upb), col = "grey", alpha = 0.3) +
+    ylab("SABAP2 reporting rate") + xlab("cumPUD") +
+    theme_classic() +
+    theme(axis.text = element_text(size = 10),
+          axis.title = element_text(size = 12))
 
 
 ```
 
 
-## Analysis of REDZs risk
+## Fig 9. Analysis of REDZs Cape Vulture encounter risk
 
 ```{r, eval=FALSE}
 
@@ -651,15 +648,19 @@ library(raster)
 library(sf)
 library(vultRmap)
 
+rm(list = ls())
+
+
 # Define regions --------------------------------------------------
 
-SA <- raster::getData("GADM", country="South Africa", level=1)
-LST <- raster::getData("GADM", country="Lesotho", level=1)
-SWZ <- raster::getData("GADM", country="Swaziland", level=1)
-BWA <- raster::getData("GADM", country="Botswana", level=1)
-NAM <- raster::getData("GADM", country="Namibia", level=1)
-ZWE <- raster::getData("GADM", country="Zimbabwe", level=1)
-MOZ <- raster::getData("GADM", country="Mozambique", level=1)
+# Download country borders. This might take a while
+SA <- raster::getData("GADM", country="South Africa", level=1, path = tempdir())
+LTS <- raster::getData("GADM", country="Lesotho", level=1, path = tempdir())
+SWZ <- raster::getData("GADM", country="Swaziland", level=1, path = tempdir())
+BWA <- raster::getData("GADM", country="Botswana", level=1, path = tempdir())
+NAM <- raster::getData("GADM", country="Namibia", level=1, path = tempdir())
+ZWE <- raster::getData("GADM", country="Zimbabwe", level=1, path = tempdir())
+MOZ <- raster::getData("GADM", country="Mozambique", level=1, path = tempdir())
 
 # For Lesotho and Swaziland we will predict for the whole countries rather than
 # provinces
@@ -684,15 +685,15 @@ range_total <- rbind(SA,LST,SWZ, BWA, NAM, ZWE, MOZ) %>%
       st_as_sf() %>%
       dplyr::select(NAME_1)
 
+
 # Load data ---------------------------------------------------------------
 
-# Load risk rasters
-risk_hgt <- raster("../vultRmap_data_aux/risk_maps/risk_hgt_total.tif")
+# Load PUD raster
 risk <- raster("../vultRmap_data_aux/risk_maps/risk_total.tif")
 
-# Load REDZ (these can be downloaded from https://egis.environment.gov.za/redz)
-redz1 <- st_read("../cape_vulture_cr/data/working/Phase1_REDZs/REDZs.shp")
-redz2 <- st_read("../cape_vulture_cr/data/working/Phase2_REDZs/PHASE 2_REDZs.shp")
+# Load REDZ. These can be downloaded from https://egis.environment.gov.za/redz
+redz1 <- st_read("data/working/Phase1_REDZs/REDZs.shp")
+redz2 <- st_read("data/working/Phase2_REDZs/PHASE 2_REDZs.shp")
 
 # Get both shapes in the same coordinate system and combine
 redz1 <- st_transform(redz1, st_crs(redz2))
@@ -701,18 +702,19 @@ redz <- rbind(dplyr::select(redz1, Name),
               dplyr::select(redz2, Name))
 
 
-# Analyze risk per province -----------------------------------------------
+# Extract PUD per province
 
 # Extract provincial risk
-prov_risk <- vultRmap::calcRegionRisk(range_total, ref_area = NULL, risk_map = risk)
+prov_risk <- calcRegionRisk(range_total, ref_area = NULL, risk_map = risk)
 
 
-# Analyze risk per REDZ -------------------------------------------------------
+# Extract PUD risk per REDZ
 
 # Extract risk values for each REDZ using total range as reference
 redz_national <- calcRegionRisk(region = redz, ref_area = range_total, risk_map = risk)
 
-# Order redz by increasing avg risk
+
+# Order redz by increasing avg PUD
 lvs <- redz_national %>%
    arrange(desc(risk_avg)) %>%
    pull(Name) %>%
@@ -720,7 +722,6 @@ lvs <- redz_national %>%
 
 redz_national <- redz_national %>%
    mutate(Name = factor(Name, levels = lvs))
-
 
 # Analyse risk taking province as a reference
 redz <- redz %>%
@@ -754,8 +755,6 @@ redz_prov <- redz_prov %>%
              by = "Name") %>%
    rename(prop_nat = risk_prop)
 
-redz_prov %>%
-   arrange(desc(risk_avg))
 
 
 # Plot REDZ risk ----------------------------------------------------------
@@ -764,18 +763,7 @@ redz_prov %>%
 redz_risk <- exactextractr::exact_extract(risk, redz)
 redz_risk <- map2_dfr(redz_national$Name, redz_risk, ~tibble(name = .x, risk = .y$value))
 
-# Remove 0.1% of activity to reduce mapping
-cutoff <- 0.99
-risk[risk < vultRmap::calcUDquantile(raster::values(risk), cutoff)] <- NA
-
-# Reclassify risk raster
-nlevels <- 10
-udlevels <- seq(0, 1, length.out = nlevels + 1)
-
-# Reclassify
-cut_points <- vultRmap::calcUDquantile(raster::values(risk), udlevels)
-rcl <- cbind(c(cut_points[-1], 0), cut_points, udlevels)
-risk_UD <- reclassify(risk, rcl)
+risk_UD <- makeBinnedRasterMap(risk, nlevels = 10, cutoff = 0.99)
 
 # Clip to South Africa for plotting
 risk_df <- as.data.frame(crop(risk_UD, SA_total), xy = TRUE)
@@ -788,7 +776,7 @@ redz_bars <- redz_national %>%
                        y = Name, colour = Name), fatten = 0.5, size = 0.5) +
    scale_y_discrete(limits=rev) +
    scale_colour_viridis_d(option = "D", direction = 1) +
-   ylab("") + xlab("risk") +
+   ylab("") + xlab("PUD") +
    theme_bw() +
    theme(axis.text = element_text(size = 10),
          axis.text.y = element_blank(),
@@ -800,37 +788,49 @@ redz_violplot <- redz_risk %>%
       geom_violin(aes(x = log(risk), y = name, fill = name)) +
       scale_y_discrete(limits=rev) +
       scale_fill_viridis_d(option = "D", direction = 1) +
-      ylab("") +
+      ylab("") + xlab("log(PUD)") +
       theme_bw() +
       theme(axis.text = element_text(size = 10),
             axis.title = element_text(size = 10),
             legend.position = "none")
 
-redz_riskmap <- ggplot() +
-   geom_raster(data = risk_df, aes(x = x, y = y, fill = risk_total),
-               alpha = 1, show.legend = FALSE) +
-   geom_sf(data = SA_total, fill = NA, linetype = 2, size = 0.3) +
-   geom_sf(data = redz_national, aes(colour = Name), fill = NA) +
-   # scale_fill_gradient(low = "white", high = "#CC089B") +
-   scale_fill_viridis_c(option = "inferno", direction = 1, na.value = NA) +
-   scale_colour_viridis_d(option = "D", direction = 1, name = "") +
-   scale_x_continuous(expand = c(0, 0)) +
-   scale_y_continuous(expand = c(0, 0)) +
-   theme_classic() +
-   theme(axis.text = element_blank(),
-         axis.ticks = element_blank(),
-         axis.title = element_blank(),
-         axis.line = element_blank(),
-         legend.text = element_text(size = 10),
-         panel.border = element_rect(fill = NA))
+# Fix REDZ's names to include a number
+redz_national <- redz_national %>% 
+    arrange(desc(risk_avg)) %>% 
+    mutate(Name = paste(row_number(), Name, sep = ".")) %>%
+    mutate(Name = factor(Name, levels = Name))
 
-redzplot <- gridExtra::arrangeGrob(redz_violplot, redz_bars, redz_riskmap,
-                                   nrow = 5, ncol = 3,
-                                   layout_matrix = cbind(c(1,1,3,3,3),
-                                                         c(1,1,3,3,3),
-                                                         c(1,1,3,3,3),
-                                                         c(2,2,3,3,3),
-                                                         c(2,2,3,3,3)))
+sf::sf_use_s2(FALSE)
+redz_number <- st_centroid(redz_national) %>% 
+    mutate(lab = row_number())
+
+redz_riskmap <- ggplot() +
+    geom_raster(data = risk_df, aes(x = x, y = y, fill = layer),
+                alpha = 1, show.legend = FALSE) +
+    geom_sf(data = SA_total, fill = NA, linetype = 2, size = 0.3) +
+    geom_sf(data = redz_national, aes(colour = Name), fill = NA) +
+    geom_sf_text(data = redz_number, aes(label = lab), size = 3, fontface = "bold") +
+    # scale_fill_gradient(low = "white", high = "#CC089B") +
+    scale_fill_viridis_c(option = "inferno", direction = 1, na.value = NA) +
+    scale_colour_viridis_d(option = "D", direction = 1, name = "") +
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    theme_classic() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          axis.line = element_blank(),
+          legend.text = element_text(size = 10),
+          panel.border = element_rect(fill = NA))
+
+gridExtra::grid.arrange(redz_violplot, redz_bars, redz_riskmap,
+                        nrow = 5, ncol = 3,
+                        layout_matrix = cbind(c(1,1,3,3,3),
+                                              c(1,1,3,3,3),
+                                              c(1,1,3,3,3),
+                                              c(2,2,3,3,3),
+                                              c(2,2,3,3,3)))
+
 
 
 
