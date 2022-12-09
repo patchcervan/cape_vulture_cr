@@ -689,7 +689,7 @@ range_total <- rbind(SA,LST,SWZ, BWA, NAM, ZWE, MOZ) %>%
 # Load data ---------------------------------------------------------------
 
 # Load PUD raster
-risk <- raster("../vultRmap_data_aux/risk_maps/risk_total.tif")
+risk <- raster("../vultRmap_data_aux/risk_maps/pud_total.tif")
 
 # Load REDZ. These can be downloaded from https://egis.environment.gov.za/redz
 redz1 <- st_read("data/working/Phase1_REDZs/REDZs.shp")
@@ -705,18 +705,18 @@ redz <- rbind(dplyr::select(redz1, Name),
 # Extract PUD per province
 
 # Extract provincial risk
-prov_risk <- calcRegionRisk(range_total, ref_area = NULL, risk_map = risk)
+prov_risk <- calcRegionRisk(range_total, ref_area = NULL, ud_map = risk)
 
 
 # Extract PUD risk per REDZ
 
 # Extract risk values for each REDZ using total range as reference
-redz_national <- calcRegionRisk(region = redz, ref_area = range_total, risk_map = risk)
+redz_national <- calcRegionRisk(region = redz, ref_area = range_total, ud_map = risk)
 
 
 # Order redz by increasing avg PUD
 lvs <- redz_national %>%
-   arrange(desc(risk_avg)) %>%
+   arrange(desc(pud_avg)) %>%
    pull(Name) %>%
    unique()
 
@@ -741,19 +741,19 @@ redz_prov <- vector("list", nrow(redz))
 
 for(i in seq_along(redz_prov)){
    prov <- filter(SA_total, NAME_1 == redz$province[i])
-   redz_prov[[i]] <- calcRegionRisk(region = redz[i,], ref_area = prov, risk_map = risk)
+   redz_prov[[i]] <- calcRegionRisk(region = redz[i,], ref_area = prov, ud_map = risk)
 }
 
 redz_prov <- do.call("rbind", redz_prov)
 
 redz_prov <- redz_prov %>%
    st_drop_geometry() %>%
-   rename(prop_prov = risk_prop) %>%
+   rename(prop_prov = pud_prop) %>%
    left_join(redz_national %>%
                 st_drop_geometry() %>%
-                dplyr::select(Name, risk_prop),
+                dplyr::select(Name, pud_prop),
              by = "Name") %>%
-   rename(prop_nat = risk_prop)
+   rename(prop_nat = pud_prop)
 
 
 
@@ -770,9 +770,9 @@ risk_df <- as.data.frame(crop(risk_UD, SA_total), xy = TRUE)
 
 redz_bars <- redz_national %>%
    ggplot() +
-   geom_pointrange(aes(x = risk_avg,
-                       xmin = pmax(0, risk_avg - risk_sd),
-                       xmax = risk_avg + risk_sd,
+   geom_pointrange(aes(x = pud_avg,
+                       xmin = pmax(0, pud_avg - pud_sd),
+                       xmax = pud_avg + pud_sd,
                        y = Name, colour = Name), fatten = 0.5, size = 0.5) +
    scale_y_discrete(limits=rev) +
    scale_colour_viridis_d(option = "D", direction = 1) +
@@ -796,7 +796,7 @@ redz_violplot <- redz_risk %>%
 
 # Fix REDZ's names to include a number
 redz_national <- redz_national %>% 
-    arrange(desc(risk_avg)) %>% 
+    arrange(desc(pud_avg)) %>% 
     mutate(Name = paste(row_number(), Name, sep = ".")) %>%
     mutate(Name = factor(Name, levels = Name))
 
