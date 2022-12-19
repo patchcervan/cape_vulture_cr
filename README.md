@@ -31,6 +31,9 @@ with care.
 Note, paths to specific directories where data or outputs are hosted,
 need to be adapted to the user configuration.
 
+The directory `rasters` contains the most recent version of the utilization
+distribution maps.
+
 ## Pre-processing of tracking and colony data
 
 ``` r
