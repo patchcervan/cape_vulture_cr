@@ -6,6 +6,7 @@
 !.gitignore
 !R/
 !R/**
+!rasters/
 R/model_tests/
 R/model_tests/*
 R/functions/TMB/*.dll
